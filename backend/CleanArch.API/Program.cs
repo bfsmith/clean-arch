@@ -1,24 +1,7 @@
+using CleanArch.API;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllers();
-builder.Services.AddSwaggerGen();
+var api = new Api(builder);
 
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.EnableTryItOutByDefault();
-        c.DisplayRequestDuration();
-    });
-}
-
-app.UseHttpsRedirection();
-
-app.MapControllers();
-
-app.Run();
+await api.RunAsync();
