@@ -1,0 +1,163 @@
+---
+alwaysApply: true
+---
+# Clean Architecture Cursor Rules
+
+## Overview
+This project follows Clean Architecture principles as described in Robert C. Martin's "Clean Architecture" book. These rules guide AI assistance to maintain proper layer separation, dependency direction, and architectural boundaries.
+
+## Project Structure Rules
+
+### Layer Organization
+- **Domain Layer**: `CleanArch.Domain` - Contains entities and business rules
+  - Entities: Core business objects with no dependencies on other layers
+  - Value Objects: Immutable objects representing domain concepts
+  - Domain Events: Events that occur within the domain
+  
+- **Core Layer (Use Cases)**: `CleanArch.Core` - Contains use cases and application logic
+  - Use Cases/Interactors: Application-specific business rules
+  - DTOs: Data transfer objects for use case boundaries
+  - Interfaces: Ports (abstractions) for external dependencies
+  - Application Services: Orchestration of use cases
+  
+- **Infrastructure Layer**: Multiple projects based on technology/concern
+  - `CleanArch.Infrastructure.Sql` - SQL database implementations (EF Core, Dapper, etc.)
+  - `CleanArch.Infrastructure.OAuth` - OAuth/authentication implementations
+  - `CleanArch.Infrastructure.Redis` - Redis caching implementations
+  - `CleanArch.Infrastructure.Http` - HTTP client implementations for external APIs
+  - Additional infrastructure projects as needed (e.g., `CleanArch.Infrastructure.Email`, `CleanArch.Infrastructure.FileStorage`)
+  - Each infrastructure project implements Core layer interfaces (ports)
+  - Framework-specific implementations and adapters
+  
+- **Presentation Layer**: `CleanArch.API` - API/Framework concerns
+  - Controllers/Endpoints: HTTP request handling
+  - Request/Response Models: API-specific data structures
+  - Middleware: Cross-cutting concerns for API layer
+  - Dependency Injection configuration
+
+## Dependency Rules
+
+### Critical Dependency Rule
+- Dependencies MUST point inward only (toward the core)
+- Domain layer: NO dependencies on any other layer
+- Core layer: Can ONLY depend on Domain layer
+- Infrastructure layer projects: Can depend on Core and Domain layers
+- Presentation layer: Can depend on Core and Domain layers, but NOT Infrastructure projects directly
+
+### Enforcement Guidelines
+- When suggesting code, verify dependency direction
+- Flag violations where outer layers are referenced by inner layers
+- Ensure interfaces (ports) are defined in Core layer, implementations (adapters) in Infrastructure projects
+- When adding new infrastructure concerns, create a new `Infrastructure.{Technology}` project
+
+## Naming Conventions
+
+### Projects
+- `CleanArch.Domain` - Domain entities and business rules
+- `CleanArch.Core` - Use cases and application logic
+- `CleanArch.Infrastructure.{Technology}` - Technology-specific implementations (e.g., `CleanArch.Infrastructure.Sql`, `CleanArch.Infrastructure.OAuth`)
+- `CleanArch.API` - Web API presentation layer
+
+### Classes and Files
+- **Entities**: Domain objects (e.g., `User`, `Order`, `Product`)
+- **Use Cases**: `{Action}{Entity}UseCase` or `{Action}{Entity}Interactor` (e.g., `CreateUserUseCase`, `GetOrderByIdUseCase`)
+- **Repositories**: `I{Entity}Repository` interface in Core, `{Entity}Repository` implementation in Infrastructure.{Technology}
+- **DTOs**: `{Entity}Dto` in Core layer
+- **Controllers**: `{Entity}Controller` or `{Entity}Endpoints` in Presentation layer
+- **Value Objects**: Descriptive names (e.g., `EmailAddress`, `Money`, `Address`)
+
+## Code Organization Rules
+
+### Domain Layer
+- Entities should be POCOs (Plain Old C# Objects)
+- No attributes from frameworks (e.g., `[Key]`, `[Required]` from EF Core)
+- Business logic belongs in entities or domain services
+- Use value objects for concepts that have no identity
+
+### Core Layer
+- Use cases should be single-purpose classes
+- Each use case implements one application-specific business rule
+- DTOs should be simple data containers
+- Interfaces (ports) define contracts, not implementations
+- Use dependency injection for all external dependencies
+
+### Infrastructure Layer Projects
+- Each infrastructure project implements Core layer interfaces (ports)
+- Can use framework-specific attributes and annotations
+- Technology-specific implementations (SQL, OAuth, Redis, etc.) in separate projects
+- Database context and migrations belong in Infrastructure.Sql
+- External API clients belong in Infrastructure.Http or technology-specific project
+- Each infrastructure project should be independently replaceable
+- Do not mix multiple technologies in a single Infrastructure project
+
+### Presentation Layer
+- Controllers/Endpoints should be thin - delegate to use cases
+- Map between DTOs and View Models
+- Handle HTTP concerns (status codes, content negotiation)
+- Configure dependency injection container
+
+## Specific Guidelines
+
+### When Creating New Features
+1. Start with Domain entities if new business concepts are needed
+2. Create use cases in Core layer
+3. Define interfaces (ports) in Core layer
+4. Implement adapters in appropriate Infrastructure.{Technology} project
+5. Create controllers/endpoints in Presentation layer
+
+### When Suggesting Code
+- Always check dependency direction before suggesting code
+- Prefer interfaces over concrete implementations
+- Use dependency injection for all dependencies
+- Keep use cases focused and testable
+- Avoid business logic in controllers or infrastructure projects
+- When adding new infrastructure concerns, create a new Infrastructure.{Technology} project rather than mixing technologies
+
+### Testing Considerations
+- Domain layer: Unit tests for business logic
+- Core layer: Unit tests for use cases (mock interfaces)
+- Infrastructure layer projects: Integration tests specific to each technology
+- Presentation layer: Integration/API tests
+
+### Common Patterns to Enforce
+- Repository pattern for data access abstraction
+- Use case pattern for application logic
+- Dependency inversion for all external dependencies
+- CQRS pattern encouraged (separate read/write models if beneficial)
+
+## File Structure Example
+```
+src/
+├── CleanArch.Domain/
+│   ├── Entities/
+│   ├── ValueObjects/
+│   └── DomainEvents/
+├── CleanArch.Core/
+│   ├── UseCases/
+│   ├── DTOs/
+│   └── Interfaces/
+├── CleanArch.Infrastructure.Sql/
+│   ├── Data/
+│   ├── Repositories/
+│   └── Migrations/
+├── CleanArch.Infrastructure.OAuth/
+│   └── Services/
+├── CleanArch.Infrastructure.Redis/
+│   └── Services/
+├── CleanArch.Infrastructure.Http/
+│   └── Clients/
+└── CleanArch.API/
+    ├── Controllers/
+    ├── Endpoints/
+    └── Program.cs
+```
+
+## Anti-Patterns to Avoid
+- Business logic in controllers
+- Entities with framework dependencies
+- Direct database access from use cases
+- Circular dependencies between layers
+- Presentation layer depending on Infrastructure projects directly
+- Domain layer depending on any other layer
+- Mixing multiple technologies in a single Infrastructure project
+

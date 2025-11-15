@@ -1,0 +1,38 @@
+---
+alwaysApply: true
+---
+# Frameworks and Libraries
+
+This document specifies the required frameworks and libraries to use when developing in this project.
+
+## Required Libraries
+
+### Validation
+- **FluentValidation**: Use for validating objects and DTOs
+  - Apply validation rules in Core layer for use case inputs
+  - Use validators for request models in Presentation layer
+
+### Database
+- **Entity Framework Core**: Use for SQL database access and ORM functionality
+  - Implement repositories in `CleanArch.Infrastructure.Sql` project
+  - DbContext and entity configurations belong in Infrastructure.Sql
+- **DbUp**: Use for SQL migrations and database versioning
+  - Migration scripts should be stored in Infrastructure.Sql project
+  - Use DbUp for managing database schema changes independently of EF Core migrations
+
+### Testing
+- **NUnit**: Use as the primary unit testing framework
+  - All unit tests should use NUnit test attributes (`[Test]`, `[TestCase]`, etc.)
+- **Moq**: Use for creating mock objects in unit tests
+- **AutoMocker**: Use for automatic dependency injection and mocking in test setup
+- **FluentAssertions**: Use for writing readable and expressive test assertions
+  - Prefer FluentAssertions syntax over standard assertions
+- **Fixture**: Use for creating test data fixtures and builders
+  - Create fixture classes for complex test data setup
+
+## Usage Guidelines
+- When suggesting code, use these specific libraries rather than alternatives
+- Ensure all test projects reference the correct testing libraries
+- Apply FluentValidation validators consistently across validation scenarios
+- Use DbUp for database migrations, not EF Core migrations
+- Structure unit tests using NUnit conventions with FluentAssertions for assertions
