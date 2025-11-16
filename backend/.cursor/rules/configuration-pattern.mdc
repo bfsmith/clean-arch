@@ -1,0 +1,167 @@
+---
+alwaysApply: true
+---
+# Configuration Object Pattern
+
+## Overview
+This project uses strongly-typed configuration objects instead of reading configuration keys directly. This provides type safety, IntelliSense support, and better maintainability.
+
+## Pattern Rules
+
+### Creating Configuration Objects
+1. **Create a configuration class** in the `Configuration` folder (e.g., `CleanArch.API/Configuration/`)
+2. **Use a constant for the section name** to avoid magic strings:
+   ```csharp
+   public class KeycloakOptions
+   {
+       public const string SectionName = "Keycloak";
+       
+       public string Authority { get; set; } = string.Empty;
+       public string Audience { get; set; } = string.Empty;
+       public bool RequireHttpsMetadata { get; set; } = true;
+   }
+   ```
+3. **Add XML documentation comments** to the class and all properties:
+   ```csharp
+   /// <summary>
+   /// Configuration options for Keycloak authentication and authorization.
+   /// </summary>
+   public class KeycloakOptions
+   {
+       /// <summary>
+       /// The configuration section name for Keycloak settings.
+       /// </summary>
+       public const string SectionName = "Keycloak";
+
+       /// <summary>
+       /// Gets or sets the Keycloak authority URL (e.g., "http://localhost:8080/realms/cleanarch").
+       /// This is the base URL of the Keycloak realm used for token validation.
+       /// </summary>
+       public string Authority { get; set; } = string.Empty;
+   }
+   ```
+   - Document the class purpose and usage
+   - Document each property with its purpose, examples, and any important notes
+   - Include examples in the documentation where helpful
+4. **Add an extension class in the same file** with a static extension method to load and validate the configuration:
+   ```csharp
+   /// <summary>
+   /// Extension methods for loading <see cref="KeycloakOptions"/> from configuration.
+   /// </summary>
+   public static class KeycloakOptionsExtensions
+   {
+       /// <summary>
+       /// Loads and validates Keycloak configuration options from the configuration section.
+       /// </summary>
+       /// <param name="configuration">The configuration manager to read from.</param>
+       /// <returns>A validated <see cref="KeycloakOptions"/> instance.</returns>
+       /// <exception cref="InvalidOperationException">Thrown when the configuration section is missing or cannot be bound.</exception>
+       public static KeycloakOptions LoadKeycloakOptions(this IConfigurationManager configuration)
+       {
+           var keycloakOptions = configuration.GetRequiredSection(KeycloakOptions.SectionName).Get<KeycloakOptions>()
+                                 ?? throw new InvalidOperationException($"Configuration section '{KeycloakOptions.SectionName}' is required.");
+           return keycloakOptions;
+       }
+   }
+   ```
+   - Name the extension class as `{OptionsName}Extensions` (e.g., `KeycloakOptionsExtensions`)
+   - Place it in the **same file** as the options class, after the options class definition
+   - Use the same namespace as the options class
+   - Document the extension class and method with XML comments
+   - Include `<param>`, `<returns>`, and `<exception>` tags for the extension method
+5. **Use descriptive property names** that match the configuration keys
+6. **Provide default values** where appropriate
+
+### Using Configuration Objects
+1. **Preferred: Use the extension method** when available:
+   ```csharp
+   var keycloakOptions = Builder.Configuration.LoadKeycloakOptions();
+   ```
+2. **Alternative: Bind configuration sections directly** using `Get<T>()`:
+   ```csharp
+   var options = Builder.Configuration.GetSection(KeycloakOptions.SectionName).Get<KeycloakOptions>()
+       ?? throw new InvalidOperationException($"Configuration section '{KeycloakOptions.SectionName}' is required.");
+   ```
+3. **Validate required properties** after binding (if not done in the factory method):
+   ```csharp
+   if (string.IsNullOrWhiteSpace(options.Authority))
+       throw new InvalidOperationException($"{KeycloakOptions.SectionName}:Authority is required.");
+   ```
+4. **Do NOT register configuration objects in DI** - bind them directly when needed
+
+### Anti-Patterns to Avoid
+- ❌ Reading configuration keys directly: `configuration["Keycloak:Authority"]`
+- ❌ Using magic strings for section names: `"Keycloak"` instead of `KeycloakOptions.SectionName`
+- ❌ Registering configuration objects in DI: `services.Configure<KeycloakOptions>()`
+- ❌ Missing validation for required properties
+- ❌ Not providing default values for optional properties
+
+### Benefits
+- ✅ **Type safety**: Compile-time checking of property names
+- ✅ **IntelliSense**: Auto-completion when accessing properties
+- ✅ **Refactoring**: Easy to rename properties across the codebase
+- ✅ **Maintainability**: Single source of truth for configuration structure
+- ✅ **Testability**: Can create test configuration objects easily
+
+### Example Usage
+
+**Using the extension method (preferred):**
+```csharp
+protected void AddAuthentication()
+{
+    var keycloakOptions = Builder.Configuration.LoadKeycloakOptions();
+
+    if (string.IsNullOrWhiteSpace(keycloakOptions.Authority))
+        throw new InvalidOperationException($"{KeycloakOptions.SectionName}:Authority is required.");
+    if (string.IsNullOrWhiteSpace(keycloakOptions.Audience))
+        throw new InvalidOperationException($"{KeycloakOptions.SectionName}:Audience is required.");
+
+    Builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.Authority = keycloakOptions.Authority;
+        options.Audience = keycloakOptions.Audience;
+        options.RequireHttpsMetadata = keycloakOptions.RequireHttpsMetadata;
+    });
+}
+```
+
+**Using direct binding (alternative):**
+```csharp
+protected void AddAuthentication()
+{
+    var keycloakOptions = Builder.Configuration.GetSection(KeycloakOptions.SectionName).Get<KeycloakOptions>()
+        ?? throw new InvalidOperationException($"Configuration section '{KeycloakOptions.SectionName}' is required.");
+
+    if (string.IsNullOrWhiteSpace(keycloakOptions.Authority))
+        throw new InvalidOperationException($"{KeycloakOptions.SectionName}:Authority is required.");
+    if (string.IsNullOrWhiteSpace(keycloakOptions.Audience))
+        throw new InvalidOperationException($"{KeycloakOptions.SectionName}:Audience is required.");
+
+    Builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.Authority = keycloakOptions.Authority;
+        options.Audience = keycloakOptions.Audience;
+        options.RequireHttpsMetadata = keycloakOptions.RequireHttpsMetadata;
+    });
+}
+```
+
+### When to Create Configuration Objects
+- When you have multiple related configuration values
+- When configuration is used in multiple places
+- When you want type safety and IntelliSense
+- When configuration structure might change or be extended
+
+### File Naming Convention
+- Configuration classes should be named `{Purpose}Options` (e.g., `KeycloakOptions`, `DatabaseOptions`, `EmailOptions`)
+- Place configuration classes in the `Configuration` folder

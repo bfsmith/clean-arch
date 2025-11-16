@@ -1,0 +1,44 @@
+---
+alwaysApply: true
+---
+# Build Verification Rule
+
+## Overview
+This rule ensures that the .NET application builds successfully after any code changes. If build errors occur, they must be fixed before proceeding.
+
+## Build Verification Process
+
+### After Making Code Changes
+1. **Always verify the build** after making changes to any C# files, project files, or configuration files
+2. Run `dotnet build` in the [backend](../../../backend) directory.
+3. If build errors occur, **fix them immediately** and rebuild
+4. Continue fixing and rebuilding until the build succeeds with zero errors
+
+### Build Command
+- For the solution: `cd backend && dotnet build`
+
+### Error Resolution Process
+1. **Read the error message** carefully to understand the issue
+2. **Fix the root cause** - don't just suppress errors
+3. **Rebuild** to verify the fix
+4. **Repeat** until build succeeds
+
+### Common Build Error Categories
+- **Missing using statements**: Add the appropriate `using` directive
+- **Missing package references**: Add the required NuGet package to the .csproj file
+- **Type mismatches**: Fix type declarations or casts
+- **Namespace issues**: Verify correct namespace usage
+- **Package version conflicts**: Resolve version conflicts by aligning package versions
+
+### Important Notes
+- **Never commit code** that doesn't build successfully
+- **Never skip build verification** to save time
+- **Always fix build errors** before moving on to other tasks
+- If a build error seems complex, break it down into smaller fixes and rebuild after each change
+
+### Build Verification Checklist
+- [ ] Code changes made
+- [ ] Build executed
+- [ ] Build succeeded (zero errors)
+- [ ] If errors occurred, they were fixed
+- [ ] Build succeeded after fixes
