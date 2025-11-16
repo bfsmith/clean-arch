@@ -19,7 +19,7 @@ public class Api
 
     public async Task RunAsync()
     {
-       
+        Prebuild();
         var app = Builder.Build();
         Apply(app);
         await app.RunAsync();

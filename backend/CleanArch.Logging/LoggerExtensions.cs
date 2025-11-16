@@ -44,16 +44,12 @@ public static class LoggerExtensions
         }
 
         var propertyDict = ConvertToDictionary(properties);
-        var logValues = new List<object?>();
-        var messageTemplate = message;
-
-        foreach (var kvp in propertyDict)
+        
+        // Use BeginScope to add properties without modifying the message template
+        using (logger.BeginScope(propertyDict))
         {
-            messageTemplate += " {" + kvp.Key + "}";
-            logValues.Add(kvp.Value);
+            logger.Log(logLevel, message);
         }
-
-        logger.Log(logLevel, messageTemplate, logValues.ToArray());
     }
 
     private static Dictionary<string, object?> ConvertToDictionary(object obj)

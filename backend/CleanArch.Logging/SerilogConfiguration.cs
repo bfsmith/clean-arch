@@ -1,6 +1,5 @@
 using Serilog;
 using Serilog.Events;
-using Serilog.Formatting.Json;
 
 namespace CleanArch.Logging;
 
@@ -16,7 +15,7 @@ public static class SerilogConfiguration
             .Enrich.WithEnvironmentName()
             .Enrich.WithMachineName()
             .Enrich.WithThreadId()
-            .WriteTo.Console(new JsonFormatter());
+            .WriteTo.Console(new CustomJsonFormatter());
     }
 }
 
