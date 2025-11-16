@@ -2,6 +2,8 @@
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using CleanArch.API.Configuration;
+using Microsoft.Extensions.Logging;
+using CleanArch.API.Middleware;
 
 namespace CleanArch.API;
 
@@ -16,11 +18,18 @@ public class Api
 
     public async Task RunAsync()
     {
-        Configuration();
-        ConfigureServices();
+       
         var app = Builder.Build();
         Apply(app);
         await app.RunAsync();
+    }
+
+    #region PreBuild
+
+    protected void Prebuild()
+    {
+        Configuration();
+        ConfigureServices();
     }
 
     protected void Configuration()
@@ -33,9 +42,20 @@ public class Api
 
     protected void ConfigureServices()
     {
+        AddLogging();
         AddControllers();
         AddAuthentication();
         AddSwagger();
+    }
+
+    protected void AddLogging()
+    {
+        Builder.Services.AddLogging(builder =>
+        {
+            builder.AddConfiguration(Builder.Configuration.GetSection("Logging"));
+            builder.AddConsole();
+            builder.AddDebug();
+        });
     }
 
     protected void AddControllers()
@@ -79,36 +99,46 @@ public class Api
     {
         var keycloakOptions = Builder.Configuration.LoadKeycloakOptions();
 
-        Builder.Services.AddSwaggerGen(c =>
+        Builder.Services.AddSwaggerGen(options =>
         {
-            c.SwaggerDoc("v1", new OpenApiInfo
-            {
-                Title = "CleanArch API",
-                Version = "v1",
-                Description = "API with JWT Authentication via Keycloak"
-            });
+          options.SwaggerDoc("v1", new OpenApiInfo
+          {
+            Title = "CleanArch API",
+            Version = "v1",
+            Description = "API with JWT Authentication via Keycloak"
+          });
 
-            c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+          options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+          {
+            Type = SecuritySchemeType.OAuth2,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Flows = new OpenApiOAuthFlows
             {
-                Type = SecuritySchemeType.OAuth2,
-                Flows = new OpenApiOAuthFlows
-                {
-                    Implicit = new OpenApiOAuthFlow
-                    {
-                        AuthorizationUrl = new Uri($"{keycloakOptions.Authority}/protocol/openid-connect/auth", UriKind.Absolute),
-                        Scopes = new Dictionary<string, string>
-                        {
-                            ["email"] = "Email address",
-                            ["profile"] = "Profile information"
-                        }
-                    }
-                }
-            });
+              Implicit = new OpenApiOAuthFlow
+              {
+                AuthorizationUrl = new Uri($"{keycloakOptions.Authority}/protocol/openid-connect/auth", UriKind.Absolute),
+                Scopes = keycloakOptions.Scopes.ToDictionary(scope => scope, scope => scope)
+              }
+            }
+          });
+          
+          options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+          {
+              [new OpenApiSecuritySchemeReference("oauth2", document)] = keycloakOptions.Scopes
+          });
         });
     }
 
+    #endregion
+
+    #region PostBuild
+    
     protected void Apply(WebApplication app)
     {
+        // Exception handling middleware should be after Swagger but before controllers
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
+        
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
@@ -131,4 +161,6 @@ public class Api
 
         app.MapControllers();
     }
+    
+    #endregion
 }

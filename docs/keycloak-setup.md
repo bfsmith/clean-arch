@@ -42,6 +42,34 @@
    - Web origins: `http://localhost:5038`
    - Click **Save**
 
+6. **Configure Audience Mapper** (Required to fix "The audience 'account' is invalid" error):
+   - After saving, stay on the client settings page
+   - Go to the **Client scopes** tab
+   - Find `cleanarch-api-dedicated` in the "Assigned default client scopes" section
+   - Click on `cleanarch-api-dedicated` to open it
+   - Go to the **Mappers** tab
+   - Click **Configure a new mapper** → **By configuration**
+   - Select **Audience** from the mapper type dropdown
+   - Configure:
+     - Name: `audience-mapper`
+     - Included Client Audience: `cleanarch-api`
+     - Add to access token: `On`
+     - Add to ID token: `Off` (optional, usually not needed)
+   - Click **Save**
+   
+   **Alternative method** (if the dedicated scope doesn't exist):
+   - Go to **Client scopes** (left sidebar, under Realm settings)
+   - Click **Create client scope**
+   - Name: `cleanarch-api-audience`
+   - Protocol: `openid-connect`
+   - Click **Save**
+   - Go to the **Mappers** tab
+   - Click **Add mapper** → **By configuration** → **Audience**
+   - Configure as above
+   - Go back to your client (`cleanarch-api`)
+   - Go to **Client scopes** tab
+   - Add `cleanarch-api-audience` to "Default client scopes"
+
 ### 3. Create a Test User
 
 1. Go to **Users** (left sidebar)
@@ -90,6 +118,12 @@ curl https://localhost:8443/api/user/profile \
 7. Now try the protected endpoints!
 
 ## Common Issues
+
+### "The audience 'account' is invalid" Error (401)
+- This occurs when tokens have `aud: "account"` instead of `aud: "cleanarch-api"`
+- **Solution**: Configure the audience mapper as described in step 6 of "Create a Client" above
+- Ensure the audience mapper includes `cleanarch-api` as the Included Client Audience
+- Verify tokens include the correct audience by decoding a JWT token at https://jwt.io
 
 ### Token Validation Fails
 - Check that the realm name matches: `cleanarch`
