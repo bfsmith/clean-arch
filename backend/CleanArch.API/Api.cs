@@ -4,6 +4,7 @@ using Microsoft.OpenApi;
 using CleanArch.API.Configuration;
 using Microsoft.Extensions.Logging;
 using CleanArch.API.Middleware;
+using CleanArch.API.Extensions;
 using CleanArch.Logging;
 
 namespace CleanArch.API;
@@ -44,6 +45,7 @@ public class Api
     protected void ConfigureServices()
     {
         AddLogging();
+        AddOpenTelemetry();
         AddControllers();
         AddAuthentication();
         AddSwagger();
@@ -51,7 +53,13 @@ public class Api
 
     protected void AddLogging()
     {
-        Builder.Services.AddCleanArchLogging(Builder.Configuration);
+        Builder.Services.AddCleanLogging(Builder.Configuration);
+    }
+
+    protected void AddOpenTelemetry()
+    {
+        var openTelemetryOptions = Builder.Configuration.LoadOpenTelemetryOptions();
+        Builder.Services.AddOpenTelemetry(openTelemetryOptions);
     }
 
     protected void AddControllers()

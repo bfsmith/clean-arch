@@ -24,6 +24,15 @@ services:
       timeout: 10s
       retries: 5
 
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: aspire-dashboard
+    ports:
+      - "15000:15000"
+      - "18888:18888"
+    networks:
+      - cleanarch-network
+
 networks:
   cleanarch-network:
     driver: bridge

@@ -28,27 +28,53 @@ public static class LoggerExtensions
 
     public static IDisposable? AddContext(this ILogger logger, object context)
     {
-        if (context == null)
+        if (logger == null || context == null)
             return null;
 
-        var properties = ConvertToDictionary(context);
-        return logger.BeginScope(properties);
+        try
+        {
+            var properties = ConvertToDictionary(context);
+            return logger.BeginScope(properties);
+        }
+        catch
+        {
+            // Swallow exceptions to prevent propagation
+            return null;
+        }
     }
 
     private static void LogWithProperties(ILogger logger, LogLevel logLevel, string message, object? properties)
     {
-        if (properties == null)
-        {
-            logger.Log(logLevel, message);
+        if (logger == null)
             return;
-        }
 
-        var propertyDict = ConvertToDictionary(properties);
-        
-        // Use BeginScope to add properties without modifying the message template
-        using (logger.BeginScope(propertyDict))
+        try
         {
-            logger.Log(logLevel, message);
+            if (properties == null)
+            {
+                logger.Log(logLevel, message);
+                return;
+            }
+
+            var propertyDict = ConvertToDictionary(properties);
+            
+            // Use BeginScope to add properties without modifying the message template
+            try
+            {
+                using (logger.BeginScope(propertyDict))
+                {
+                    logger.Log(logLevel, message);
+                }
+            }
+            catch
+            {
+                // If BeginScope throws, fall back to logging without scope
+                logger.Log(logLevel, message);
+            }
+        }
+        catch
+        {
+            // Swallow exceptions from logger to prevent propagation
         }
     }
 
@@ -64,6 +90,7 @@ public static class LoggerExtensions
         {
             foreach (DictionaryEntry entry in dictionary)
             {
+                // Handle null keys gracefully
                 var key = entry.Key?.ToString() ?? "null";
                 dict[key] = entry.Value;
             }

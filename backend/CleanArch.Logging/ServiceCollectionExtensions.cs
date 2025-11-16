@@ -8,13 +8,17 @@ namespace CleanArch.Logging;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddCleanArchLogging(
+    public static IServiceCollection AddCleanLogging(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration? configuration)
     {
         // Create Serilog logger
-        var loggerConfiguration = SerilogConfiguration.CreateLoggerConfiguration()
-            .ReadFrom.Configuration(configuration);
+        var loggerConfiguration = SerilogConfiguration.CreateLoggerConfiguration();
+        
+        if (configuration != null)
+        {
+            loggerConfiguration = loggerConfiguration.ReadFrom.Configuration(configuration);
+        }
 
         Log.Logger = loggerConfiguration.CreateLogger();
 

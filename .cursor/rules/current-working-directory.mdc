@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+Always determine the current working directory before performing any terminal or file system operations as the agent may be running in a different directory.
+
+This is `Get-Location` in PowerShell.

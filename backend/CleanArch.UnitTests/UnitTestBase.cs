@@ -1,4 +1,6 @@
 using AutoFixture;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Moq.AutoMock;
 
 namespace CleanArch.UnitTests;
@@ -10,6 +12,7 @@ namespace CleanArch.UnitTests;
 public abstract class UnitTestBase<T>
 {
     private Lazy<T> _lazySystemUnderTest = null!;
+    private Lazy<Mock<ILogger>> _lazyMockLogger = null!;
 
     /// <summary>
     /// Gets the System Under Test instance being tested. The instance is created lazily on first access,
@@ -27,11 +30,17 @@ public abstract class UnitTestBase<T>
     /// </summary>
     protected readonly AutoMocker AutoMock;
 
+    /// <summary>
+    /// Gets a Mock&lt;ILogger&gt; instance. The mock is created lazily on first access.
+    /// </summary>
+    protected Mock<ILogger> MockLogger => _lazyMockLogger.Value;
+
     protected UnitTestBase()
     {
         Fixture = new Fixture();
         AutoMock = new AutoMocker();
         _lazySystemUnderTest = new Lazy<T>(() => AutoMock.Get<T>());
+        _lazyMockLogger = new Lazy<Mock<ILogger>>(() => AutoMock.GetMock<ILogger>());
     }
 }
 

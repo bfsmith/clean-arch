@@ -1,0 +1,652 @@
+using System.Text;
+using FluentAssertions;
+using NUnit.Framework;
+using Serilog.Events;
+using Serilog.Parsing;
+using CleanArch.Logging;
+using CleanArch.UnitTests;
+
+namespace CleanArch.Logging.Tests;
+
+[TestFixture]
+public class CustomJsonFormatterTests : UnitTestBase<CustomJsonFormatter>
+{
+    private StringWriter _output = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _output = new StringWriter();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _output?.Dispose();
+    }
+
+    #region Basic Functionality Tests
+
+    [Test]
+    public void Format_WithStandardLogEvent_ShouldNotThrow()
+    {
+        // Arrange
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithStandardLogEvent_ShouldProduceValidJson()
+    {
+        // Arrange
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().NotBeNullOrEmpty();
+        json.Should().Contain("timestamp");
+        json.Should().Contain("level");
+        json.Should().Contain("message");
+        json.Should().Contain("Test message");
+    }
+
+    [Test]
+    public void Format_WithDifferentLogLevels_ShouldNotThrow()
+    {
+        // Act & Assert
+        foreach (var level in new[] { LogEventLevel.Debug, LogEventLevel.Information, LogEventLevel.Warning, LogEventLevel.Error, LogEventLevel.Fatal })
+        {
+            var logEvent = CreateLogEvent("Test message", level);
+            Assert.DoesNotThrow(() =>
+            {
+                SystemUnderTest.Format(logEvent, _output);
+            });
+            _output.GetStringBuilder().Clear();
+        }
+    }
+
+    [Test]
+    public void Format_WithProperties_ShouldIncludeProperties()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "UserId", new ScalarValue(123) },
+            { "UserName", new ScalarValue("TestUser") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("properties");
+        json.Should().Contain("userId");
+        json.Should().Contain("userName");
+    }
+
+    [Test]
+    public void Format_ShouldConvertToCamelCase()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "UserId", new ScalarValue(123) },
+            { "User_Name", new ScalarValue("Test") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("userId");
+        json.Should().Contain("user_Name");
+    }
+
+    #endregion
+
+    #region Edge Cases
+
+    [Test]
+    public void Format_WithNullLogEvent_ShouldNotThrow()
+    {
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(null!, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithNullOutput_ShouldNotThrow()
+    {
+        // Arrange
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, null!);
+        });
+    }
+
+    [Test]
+    public void Format_WithEmptyMessageTemplate_ShouldNotThrow()
+    {
+        // Arrange
+        var logEvent = CreateLogEvent("", LogEventLevel.Information);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithNullMessageTemplate_ShouldNotThrow()
+    {
+        // Arrange
+        // Note: Serilog's MessageTemplateParser doesn't allow null templates,
+        // so we test with an empty string template instead, which is the closest equivalent
+        var messageTemplate = new MessageTemplateParser().Parse("");
+        var logEvent = new LogEvent(
+            DateTimeOffset.Now,
+            LogEventLevel.Information,
+            null,
+            messageTemplate,
+            Array.Empty<LogEventProperty>());
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithNoProperties_ShouldNotThrow()
+    {
+        // Arrange
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+
+        var json = _output.ToString();
+        json.Should().NotContain("properties");
+    }
+
+    [Test]
+    public void Format_WithFrameworkProperties_ShouldIncludeAtRootLevel()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "TraceId", new ScalarValue("trace-123") },
+            { "SpanId", new ScalarValue("span-456") },
+            { "RequestId", new ScalarValue("req-789") },
+            { "SourceContext", new ScalarValue("TestClass") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("traceId");
+        json.Should().Contain("spanId");
+        json.Should().Contain("requestId");
+        json.Should().Contain("sourceContext");
+        json.Should().NotContain("\"properties\":{\"traceId\"");
+    }
+
+    [Test]
+    public void Format_WithMixedFrameworkAndUserProperties_ShouldSeparateCorrectly()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "TraceId", new ScalarValue("trace-123") },
+            { "UserId", new ScalarValue(123) },
+            { "UserName", new ScalarValue("TestUser") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("traceId");
+        json.Should().Contain("properties");
+        json.Should().Contain("userId");
+        json.Should().Contain("userName");
+    }
+
+    #endregion
+
+    #region Property Value Formatting
+
+    [Test]
+    public void Format_WithScalarStringValue_ShouldNotThrow()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "StringValue", new ScalarValue("Test String") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithScalarIntValue_ShouldNotThrow()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "IntValue", new ScalarValue(123) }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithScalarBoolValue_ShouldNotThrow()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "BoolValue", new ScalarValue(true) }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithScalarNullValue_ShouldNotThrow()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "NullValue", new ScalarValue(null) }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithSequenceValue_ShouldNotThrow()
+    {
+        // Arrange
+        var sequence = new SequenceValue(new[]
+        {
+            new ScalarValue("Item1"),
+            new ScalarValue("Item2"),
+            new ScalarValue("Item3")
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Items", sequence }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithStructureValue_ShouldNotThrow()
+    {
+        // Arrange
+        var structure = new StructureValue(new[]
+        {
+            new LogEventProperty("Name", new ScalarValue("Test")),
+            new LogEventProperty("Value", new ScalarValue(123))
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Object", structure }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithDictionaryValue_ShouldNotThrow()
+    {
+        // Arrange
+        var dictionary = new DictionaryValue(new[]
+        {
+            new KeyValuePair<ScalarValue, LogEventPropertyValue>(
+                new ScalarValue("Key1"),
+                new ScalarValue("Value1")),
+            new KeyValuePair<ScalarValue, LogEventPropertyValue>(
+                new ScalarValue("Key2"),
+                new ScalarValue("Value2"))
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Dictionary", dictionary }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithNestedStructures_ShouldNotThrow()
+    {
+        // Arrange
+        var innerStructure = new StructureValue(new[]
+        {
+            new LogEventProperty("InnerName", new ScalarValue("Inner"))
+        });
+        var outerStructure = new StructureValue(new[]
+        {
+            new LogEventProperty("OuterName", new ScalarValue("Outer")),
+            new LogEventProperty("Inner", innerStructure)
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Nested", outerStructure }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithSpecialCharactersInValues_ShouldNotThrow()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "JsonValue", new ScalarValue("{\"key\":\"value\"}") },
+            { "XmlValue", new ScalarValue("<tag>value</tag>") },
+            { "NewLineValue", new ScalarValue("Line1\nLine2") },
+            { "UnicodeValue", new ScalarValue("Test\u00A9\u00AE") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithVeryLargePropertyValue_ShouldNotThrow()
+    {
+        // Arrange
+        var largeString = new string('A', 100000);
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "LargeValue", new ScalarValue(largeString) }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithAllFrameworkProperties_ShouldIncludeAll()
+    {
+        // Arrange
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "TraceId", new ScalarValue("trace-123") },
+            { "SpanId", new ScalarValue("span-456") },
+            { "RequestId", new ScalarValue("req-789") },
+            { "ConnectionId", new ScalarValue("conn-101") },
+            { "RequestPath", new ScalarValue("/api/test") },
+            { "ActionId", new ScalarValue("action-202") },
+            { "ActionName", new ScalarValue("TestAction") },
+            { "SourceContext", new ScalarValue("TestClass") },
+            { "EnvironmentName", new ScalarValue("Development") },
+            { "MachineName", new ScalarValue("TestMachine") },
+            { "ThreadId", new ScalarValue(12345) }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("traceId");
+        json.Should().Contain("spanId");
+        json.Should().Contain("requestId");
+        json.Should().Contain("connectionId");
+        json.Should().Contain("requestPath");
+        json.Should().Contain("actionId");
+        json.Should().Contain("actionName");
+        json.Should().Contain("sourceContext");
+        json.Should().Contain("environmentName");
+        json.Should().Contain("machineName");
+        json.Should().Contain("threadId");
+    }
+
+    #endregion
+
+    #region Exception Safety
+
+    [Test]
+    public void Format_WithThrowingOutputWriter_ShouldNotPropagateException()
+    {
+        // Arrange
+        var throwingWriter = new ThrowingTextWriter();
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, throwingWriter);
+        });
+    }
+
+    [Test]
+    public void Format_WithInvalidPropertyValue_ShouldNotThrow()
+    {
+        // Arrange
+        // Create a property value that might cause issues during formatting
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "InvalidValue", new ScalarValue(new object()) } // Non-serializable object
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithComplexNestedStructures_ShouldNotThrow()
+    {
+        // Arrange
+        var deepNested = new StructureValue(new[]
+        {
+            new LogEventProperty("Level1", new StructureValue(new[]
+            {
+                new LogEventProperty("Level2", new StructureValue(new[]
+                {
+                    new LogEventProperty("Level3", new ScalarValue("Deep"))
+                }))
+            }))
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "DeepNested", deepNested }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithEmptySequence_ShouldNotThrow()
+    {
+        // Arrange
+        var emptySequence = new SequenceValue(Array.Empty<LogEventPropertyValue>());
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "EmptyArray", emptySequence }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithEmptyDictionary_ShouldNotThrow()
+    {
+        // Arrange
+        var emptyDictionary = new DictionaryValue(Array.Empty<KeyValuePair<ScalarValue, LogEventPropertyValue>>());
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "EmptyDict", emptyDictionary }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    [Test]
+    public void Format_WithNullInSequence_ShouldNotThrow()
+    {
+        // Arrange
+        var sequence = new SequenceValue(new[]
+        {
+            new ScalarValue("Item1"),
+            new ScalarValue(null),
+            new ScalarValue("Item3")
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Items", sequence }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private static LogEvent CreateLogEvent(
+        string message,
+        LogEventLevel level,
+        Dictionary<string, LogEventPropertyValue>? properties = null)
+    {
+        var messageTemplate = new MessageTemplateParser().Parse(message);
+        var logEventProperties = properties?.Select(kvp => new LogEventProperty(kvp.Key, kvp.Value))
+            .ToList() ?? new List<LogEventProperty>();
+
+        return new LogEvent(
+            DateTimeOffset.UtcNow,
+            level,
+            null,
+            messageTemplate,
+            logEventProperties);
+    }
+
+    private class ThrowingTextWriter : TextWriter
+    {
+        public override Encoding Encoding => Encoding.UTF8;
+
+        public override void Write(char value)
+        {
+            throw new InvalidOperationException("Writer throws");
+        }
+
+        public override void Write(string? value)
+        {
+            throw new InvalidOperationException("Writer throws");
+        }
+
+        public override void WriteLine(string? value)
+        {
+            throw new InvalidOperationException("Writer throws");
+        }
+    }
+
+    #endregion
+}
+
