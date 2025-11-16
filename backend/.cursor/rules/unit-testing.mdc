@@ -1,0 +1,443 @@
+---
+alwaysApply: true
+---
+# Unit Testing Standards
+
+## Overview
+This project uses NUnit as the test framework with Moq, AutoFixture, AutoMoq, and FluentAssertions for comprehensive unit testing. These rules guide AI assistance to write maintainable, readable, and effective unit tests that follow Clean Architecture principles.
+
+## Testing Libraries
+
+### Core Libraries
+- **NUnit**: Test framework and test runner
+- **Moq**: Mocking framework for creating test doubles
+- **AutoFixture**: Automatic test data generation
+- **AutoFixture.AutoMoq**: Integration of AutoFixture with Moq for automatic mocking
+- **FluentAssertions**: Fluent API for assertions
+
+## Test Project Structure
+
+### Naming Conventions
+- Test projects: `{ProjectName}.Tests` (e.g., `CleanArch.Core.Tests`, `CleanArch.API.Tests`)
+- Test classes: `{ClassName}Tests` (e.g., `CreateUserUseCaseTests`, `UserControllerTests`)
+- Test methods: `{MethodName}_{Scenario}_{ExpectedResult}` (e.g., `Execute_WithValidInput_ReturnsSuccess`, `Execute_WithInvalidInput_ThrowsException`)
+
+### File Organization
+```
+{ProjectName}.Tests/
+├── UseCases/
+│   └── CreateUserUseCaseTests.cs
+├── Controllers/
+│   └── UserControllerTests.cs
+├── Services/
+│   └── UserServiceTests.cs
+└── Helpers/
+    └── TestDataBuilder.cs
+```
+
+## Test Class Structure
+
+### Standard Test Class Template
+```csharp
+using AutoFixture;
+using AutoFixture.AutoMoq;
+using FluentAssertions;
+using Moq;
+using NUnit.Framework;
+
+namespace CleanArch.Core.Tests.UseCases;
+
+[TestFixture]
+public class CreateUserUseCaseTests
+{
+    private IFixture _fixture = null!;
+    private Mock<IRepository> _repositoryMock = null!;
+    private CreateUserUseCase _sut = null!; // System Under Test
+
+    [SetUp]
+    public void SetUp()
+    {
+        _fixture = new Fixture().Customize(new AutoMoqCustomization());
+        _repositoryMock = _fixture.Freeze<Mock<IRepository>>();
+        _sut = _fixture.Create<CreateUserUseCase>();
+    }
+
+    [Test]
+    public void Execute_WithValidInput_ReturnsSuccess()
+    {
+        // Arrange
+        var input = _fixture.Create<CreateUserInput>();
+        var expectedUser = _fixture.Create<User>();
+        _repositoryMock.Setup(x => x.SaveAsync(It.IsAny<User>())).ReturnsAsync(expectedUser);
+
+        // Act
+        var result = await _sut.ExecuteAsync(input);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.UserId.Should().Be(expectedUser.Id);
+        _repositoryMock.Verify(x => x.SaveAsync(It.IsAny<User>()), Times.Once);
+    }
+}
+```
+
+## Library Usage Guidelines
+
+### AutoFixture
+- **Use AutoFixture for test data generation** instead of manually creating test objects
+- **Customize AutoFixture** when you need specific values or behaviors:
+  ```csharp
+  _fixture.Customize<User>(c => c
+      .With(x => x.Email, "test@example.com")
+      .Without(x => x.DeletedAt));
+  ```
+- **Use `Freeze<T>()`** to get the same instance throughout the test:
+  ```csharp
+  var mockRepository = _fixture.Freeze<Mock<IRepository>>();
+  ```
+- **Use `Create<T>()`** to generate test data:
+  ```csharp
+  var user = _fixture.Create<User>();
+  var users = _fixture.CreateMany<User>(5);
+  ```
+
+### AutoMoq
+- **Use AutoMoqCustomization** to automatically create mocks for dependencies:
+  ```csharp
+  _fixture = new Fixture().Customize(new AutoMoqCustomization());
+  ```
+- **AutoMoq automatically creates mocks** for constructor parameters
+- **Freeze mocks** when you need to configure them:
+  ```csharp
+  var mockRepository = _fixture.Freeze<Mock<IRepository>>();
+  mockRepository.Setup(x => x.GetByIdAsync(It.IsAny<int>())).ReturnsAsync(user);
+  ```
+
+### Moq
+- **Use `Setup()`** to configure mock behavior:
+  ```csharp
+  _repositoryMock.Setup(x => x.GetByIdAsync(It.IsAny<int>()))
+      .ReturnsAsync(user);
+  ```
+- **Use `Verify()`** to assert interactions:
+  ```csharp
+  _repositoryMock.Verify(x => x.SaveAsync(It.IsAny<User>()), Times.Once);
+  _repositoryMock.Verify(x => x.DeleteAsync(It.IsAny<int>()), Times.Never);
+  ```
+- **Use `It.Is<T>()` for argument matching**:
+  ```csharp
+  _repositoryMock.Setup(x => x.GetByIdAsync(It.Is<int>(id => id > 0)))
+      .ReturnsAsync(user);
+  ```
+- **Use `It.IsAny<T>()`** when the argument value doesn't matter
+- **Use `It.IsNotNull<T>()`** to verify non-null arguments
+- **Use `Callback()`** to capture arguments:
+  ```csharp
+  User? capturedUser = null;
+  _repositoryMock.Setup(x => x.SaveAsync(It.IsAny<User>()))
+      .Callback<User>(u => capturedUser = u)
+      .ReturnsAsync(user);
+  ```
+
+### FluentAssertions
+- **Use FluentAssertions for all assertions** instead of NUnit's `Assert` class
+- **Use descriptive assertion chains**:
+  ```csharp
+  result.Should().NotBeNull();
+  result.UserId.Should().Be(expectedUserId);
+  result.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
+  ```
+- **Use collection assertions**:
+  ```csharp
+  users.Should().NotBeNull().And.HaveCount(5);
+  users.Should().Contain(u => u.Email == "test@example.com");
+  users.Should().OnlyContain(u => u.IsActive);
+  ```
+- **Use exception assertions**:
+  ```csharp
+  var act = () => _sut.ExecuteAsync(invalidInput);
+  act.Should().ThrowAsync<ValidationException>()
+      .WithMessage("User email is required");
+  ```
+- **Use object graph assertions**:
+  ```csharp
+  result.Should().BeEquivalentTo(expectedResult, options => options
+      .Excluding(x => x.Id)
+      .Excluding(x => x.CreatedAt));
+  ```
+
+## Testing Patterns
+
+### Arrange-Act-Assert (AAA) Pattern
+Always structure tests using the AAA pattern:
+```csharp
+[Test]
+public void Execute_WithValidInput_ReturnsSuccess()
+{
+    // Arrange
+    var input = _fixture.Create<CreateUserInput>();
+    var expectedUser = _fixture.Create<User>();
+    _repositoryMock.Setup(x => x.SaveAsync(It.IsAny<User>())).ReturnsAsync(expectedUser);
+
+    // Act
+    var result = await _sut.ExecuteAsync(input);
+
+    // Assert
+    result.Should().NotBeNull();
+    result.UserId.Should().Be(expectedUser.Id);
+}
+```
+
+### Testing Async Methods
+- **Use `async Task`** for async test methods:
+  ```csharp
+  [Test]
+  public async Task ExecuteAsync_WithValidInput_ReturnsSuccess()
+  {
+      // Arrange
+      var input = _fixture.Create<CreateUserInput>();
+      
+      // Act
+      var result = await _sut.ExecuteAsync(input);
+      
+      // Assert
+      result.Should().NotBeNull();
+  }
+  ```
+
+### Testing Exceptions
+- **Use FluentAssertions exception testing**:
+  ```csharp
+  [Test]
+  public void Execute_WithInvalidInput_ThrowsValidationException()
+  {
+      // Arrange
+      var invalidInput = _fixture.Build<CreateUserInput>()
+          .Without(x => x.Email)
+          .Create();
+
+      // Act & Assert
+      var act = () => _sut.ExecuteAsync(invalidInput);
+      act.Should().ThrowAsync<ValidationException>()
+          .WithMessage("*email*");
+  }
+  ```
+
+### Testing Private Methods
+- **DO NOT test private methods directly** - test them through public methods
+- If a private method needs isolated testing, consider refactoring it to a separate class or making it internal with `[InternalsVisibleTo]`
+
+### Testing Static Methods
+- **Avoid testing static methods directly** when possible
+- If necessary, wrap static calls in an abstraction and mock the abstraction
+
+## Test Data Builders (Optional Pattern)
+
+For complex test data scenarios, consider using builder pattern:
+```csharp
+public class UserBuilder
+{
+    private readonly IFixture _fixture;
+    private string _email = "test@example.com";
+    private bool _isActive = true;
+
+    public UserBuilder(IFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public UserBuilder WithEmail(string email)
+    {
+        _email = email;
+        return this;
+    }
+
+    public UserBuilder AsInactive()
+    {
+        _isActive = false;
+        return this;
+    }
+
+    public User Build()
+    {
+        return _fixture.Build<User>()
+            .With(x => x.Email, _email)
+            .With(x => x.IsActive, _isActive)
+            .Create();
+    }
+}
+```
+
+## Clean Architecture Testing Guidelines
+
+### Domain Layer Tests
+- Test business logic and domain rules
+- No mocks needed (pure domain logic)
+- Test value objects, entities, and domain services
+
+### Core Layer Tests (Use Cases)
+- Mock all dependencies (repositories, services)
+- Test use case orchestration and business rules
+- Verify interactions with dependencies
+- Test error handling and validation
+
+### Infrastructure Layer Tests
+- Use integration tests rather than unit tests
+- Test actual implementations against real or in-memory dependencies
+- Mock external services (HTTP clients, etc.)
+
+### Presentation Layer Tests
+- Mock use cases and services
+- Test HTTP concerns (status codes, response models)
+- Test middleware and filters
+
+## Best Practices
+
+### DO
+- ✅ Use AutoFixture for test data generation
+- ✅ Use AutoMoq for automatic mock creation
+- ✅ Use FluentAssertions for all assertions
+- ✅ Name tests descriptively: `MethodName_Scenario_ExpectedResult`
+- ✅ Follow AAA pattern (Arrange-Act-Assert)
+- ✅ Test one thing per test method
+- ✅ Use `SetUp` for common test initialization
+- ✅ Freeze mocks when you need to configure them
+- ✅ Verify mock interactions when behavior matters
+- ✅ Use `It.Is<T>()` for specific argument matching
+- ✅ Test both success and failure scenarios
+- ✅ Test edge cases and boundary conditions
+
+### DON'T
+- ❌ Don't use NUnit's `Assert` class - use FluentAssertions
+- ❌ Don't manually create test objects when AutoFixture can generate them
+- ❌ Don't test implementation details - test behavior
+- ❌ Don't create overly complex test setups
+- ❌ Don't share state between tests
+- ❌ Don't test private methods directly
+- ❌ Don't use `[Ignore]` without a comment explaining why
+- ❌ Don't create tests that depend on execution order
+- ❌ Don't use magic numbers - use AutoFixture or constants
+- ❌ Don't forget to verify mock interactions when they matter
+
+## Example: Complete Test Class
+
+```csharp
+using AutoFixture;
+using AutoFixture.AutoMoq;
+using CleanArch.Core.UseCases;
+using CleanArch.Core.Interfaces;
+using CleanArch.Domain.Entities;
+using FluentAssertions;
+using Moq;
+using NUnit.Framework;
+
+namespace CleanArch.Core.Tests.UseCases;
+
+[TestFixture]
+public class CreateUserUseCaseTests
+{
+    private IFixture _fixture = null!;
+    private Mock<IUserRepository> _userRepositoryMock = null!;
+    private Mock<IEmailService> _emailServiceMock = null!;
+    private CreateUserUseCase _sut = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _fixture = new Fixture().Customize(new AutoMoqCustomization());
+        _userRepositoryMock = _fixture.Freeze<Mock<IUserRepository>>();
+        _emailServiceMock = _fixture.Freeze<Mock<IEmailService>>();
+        _sut = _fixture.Create<CreateUserUseCase>();
+    }
+
+    [Test]
+    public async Task ExecuteAsync_WithValidInput_ReturnsSuccessResult()
+    {
+        // Arrange
+        var input = _fixture.Create<CreateUserInput>();
+        var expectedUser = _fixture.Build<User>()
+            .With(u => u.Email, input.Email)
+            .Create();
+        
+        _userRepositoryMock
+            .Setup(x => x.SaveAsync(It.IsAny<User>()))
+            .ReturnsAsync(expectedUser);
+
+        // Act
+        var result = await _sut.ExecuteAsync(input);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IsSuccess.Should().BeTrue();
+        result.UserId.Should().Be(expectedUser.Id);
+        _userRepositoryMock.Verify(x => x.SaveAsync(It.Is<User>(u => u.Email == input.Email)), Times.Once);
+        _emailServiceMock.Verify(x => x.SendWelcomeEmailAsync(It.IsAny<string>()), Times.Once);
+    }
+
+    [Test]
+    public async Task ExecuteAsync_WithDuplicateEmail_ReturnsFailureResult()
+    {
+        // Arrange
+        var input = _fixture.Create<CreateUserInput>();
+        _userRepositoryMock
+            .Setup(x => x.ExistsByEmailAsync(input.Email))
+            .ReturnsAsync(true);
+
+        // Act
+        var result = await _sut.ExecuteAsync(input);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("email");
+        _userRepositoryMock.Verify(x => x.SaveAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Test]
+    public async Task ExecuteAsync_WhenRepositoryThrowsException_PropagatesException()
+    {
+        // Arrange
+        var input = _fixture.Create<CreateUserInput>();
+        _userRepositoryMock
+            .Setup(x => x.SaveAsync(It.IsAny<User>()))
+            .ThrowsAsync(new InvalidOperationException("Database error"));
+
+        // Act & Assert
+        var act = () => _sut.ExecuteAsync(input);
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Database error");
+    }
+}
+```
+
+## Test Attributes
+
+### NUnit Attributes
+- `[TestFixture]`: Marks a test class
+- `[Test]`: Marks a test method
+- `[SetUp]`: Method run before each test
+- `[TearDown]`: Method run after each test
+- `[OneTimeSetUp]`: Method run once before all tests
+- `[OneTimeTearDown]`: Method run once after all tests
+- `[TestCase]`: Parameterized test with inline data
+- `[TestCaseSource]`: Parameterized test with data from a source
+- `[Ignore]`: Skip a test (use sparingly with comments)
+
+### Example: Parameterized Tests
+```csharp
+[TestCase("valid@email.com", true)]
+[TestCase("invalid-email", false)]
+[TestCase("", false)]
+[TestCase(null, false)]
+public void ValidateEmail_WithVariousInputs_ReturnsExpectedResult(string email, bool expected)
+{
+    // Arrange
+    var validator = _fixture.Create<EmailValidator>();
+
+    // Act
+    var result = validator.IsValid(email);
+
+    // Assert
+    result.Should().Be(expected);
+}
+```

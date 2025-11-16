@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using CleanArch.Logging;
 
 namespace CleanArch.API.Middleware;
 
@@ -23,8 +24,12 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception occurred. Request Path: {Path}, Method: {Method}",
-                context.Request.Path, context.Request.Method);
+            _logger.Error("An unhandled exception occurred", new 
+            { 
+                Exception = ex,
+                Path = context.Request.Path.ToString(),
+                Method = context.Request.Method
+            });
             
             await HandleExceptionAsync(context, ex);
         }

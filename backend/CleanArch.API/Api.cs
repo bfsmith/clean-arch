@@ -4,6 +4,7 @@ using Microsoft.OpenApi;
 using CleanArch.API.Configuration;
 using Microsoft.Extensions.Logging;
 using CleanArch.API.Middleware;
+using CleanArch.Logging;
 
 namespace CleanArch.API;
 
@@ -50,12 +51,7 @@ public class Api
 
     protected void AddLogging()
     {
-        Builder.Services.AddLogging(builder =>
-        {
-            builder.AddConfiguration(Builder.Configuration.GetSection("Logging"));
-            builder.AddConsole();
-            builder.AddDebug();
-        });
+        Builder.Services.AddCleanArchLogging(Builder.Configuration);
     }
 
     protected void AddControllers()
