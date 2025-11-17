@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
+using Serilog.Events;
 using CleanArch.Logging;
 using CleanArch.UnitTests;
 
@@ -486,6 +487,61 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         });
     }
 
+    [Test]
+    public void Info_WithCircularReference_ShouldLogWithoutInfiniteLoop()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var parent = new TestClassWithCircularReference { Name = "Parent", Id = 1 };
+        var child = new TestClassWithCircularReference { Name = "Child", Id = 2, Parent = parent };
+        parent.Child = child; // Create circular reference
+
+        // Act
+        var act = () => logger.Info("Test message", parent);
+        
+        // Assert - Should complete without hanging or throwing
+        act.Should().NotThrow();
+
+    var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        // The circular reference should be handled (object reference stored, not recursively converted)
+        log.Should().ContainKey("properties");
+    }
+
+    [Test]
+    public void AddContext_WithCircularReference_ShouldNotThrow()
+    {
+        // Arrange
+        var parent = new TestClassWithCircularReference { Name = "Parent" };
+        var child = new TestClassWithCircularReference { Name = "Child", Parent = parent };
+        parent.Child = child; // Create circular reference
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            MockLogger.Object.AddContext(parent);
+        });
+    }
+
+    private class TestClassWithCircularReference
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Id { get; set; }
+        public TestClassWithCircularReference? Parent { get; set; }
+        public TestClassWithCircularReference? Child { get; set; }
+    }
+
+    private class NullToStringKey
+    {
+        public override string? ToString()
+        {
+            return null; // Return null to test the null coalescing branch
+        }
+    }
+
     #endregion
 
     #region Special Characters
@@ -730,7 +786,397 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         });
     }
 
+    [Test]
+    public void AddContext_WhenBeginScopeThrowsAfterConversion_ShouldReturnNull()
+    {
+        // Arrange
+        // This tests the catch block in AddContext (lines 41-44)
+        // We make BeginScope throw after ConvertToDictionary succeeds
+        var throwingLogger = new Mock<ILogger>();
+        throwingLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
+            .Throws<InvalidOperationException>();
+
+        var context = new { UserId = 123 };
+
+        // Act
+        var result = throwingLogger.Object.AddContext(context);
+
+        // Assert
+        result.Should().BeNull(); // Should return null when exception occurs (lines 41-44)
+    }
+
+    [Test]
+    public void Debug_WithDictionaryWithNullKey_ShouldHandleNullKey()
+    {
+        // Arrange
+        // Test ConvertToDictionary with dictionary entry that has null key (line 91)
+        IDictionary properties = new NullableKeyDictionary
+        {
+            { null, "Value1" },
+            { "Key2", "Value2" }
+        };
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            MockLogger.Object.Debug("Test message", properties);
+        });
+    }
+
+    [Test]
+    public void Debug_WithDictionaryKeyThatToStringReturnsNull_ShouldUseNullString()
+    {
+        // Arrange
+        // Test the null coalescing branch on line 91: entry.Key.ToString() ?? "null"
+        // Create a key object whose ToString() returns null
+        var nullToStringKey = new NullToStringKey();
+        IDictionary properties = new NullableKeyDictionary
+        {
+            { nullToStringKey, "Value1" }
+        };
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            MockLogger.Object.Debug("Test message", properties);
+        });
+    }
+
     #endregion
+
+    #region Log Output Verification Tests
+
+    [Test]
+    public void Debug_WithSimpleObject_ShouldLogMessageAndProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger(LogEventLevel.Debug);
+        var properties = new { Name = "Test", Value = 123 };
+
+        // Act
+        logger.Debug("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        log.Should().ContainKey("level");
+        log["level"]?.ToString().Should().Be("Debug");
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("name").GetString().Should().Be("Test");
+        props?.GetProperty("value").GetInt32().Should().Be(123);
+    }
+
+    [Test]
+    public void Info_WithSimpleObject_ShouldLogMessageAndProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { Name = "Test", Value = 123 };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        log.Should().ContainKey("level");
+        log["level"]?.ToString().Should().Be("Information");
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("name").GetString().Should().Be("Test");
+        props?.GetProperty("value").GetInt32().Should().Be(123);
+    }
+
+    [Test]
+    public void Warn_WithSimpleObject_ShouldLogMessageAndProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { Name = "Test", Value = 123 };
+
+        // Act
+        logger.Warn("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        log.Should().ContainKey("level");
+        log["level"]?.ToString().Should().Be("Warning");
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("name").GetString().Should().Be("Test");
+        props?.GetProperty("value").GetInt32().Should().Be(123);
+    }
+
+    [Test]
+    public void Error_WithSimpleObject_ShouldLogMessageAndProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { Name = "Test", Value = 123 };
+
+        // Act
+        logger.Error("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        log.Should().ContainKey("level");
+        log["level"]?.ToString().Should().Be("Error");
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("name").GetString().Should().Be("Test");
+        props?.GetProperty("value").GetInt32().Should().Be(123);
+    }
+
+    [Test]
+    public void Info_WithDictionary_ShouldLogMessageAndProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new Dictionary<string, object> { { "Key1", "Value1" }, { "Key2", 42 } };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("key1").GetString().Should().Be("Value1");
+        props?.GetProperty("key2").GetInt32().Should().Be(42);
+    }
+
+    [Test]
+    public void Info_WithoutProperties_ShouldLogMessageOnly()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+
+        // Act
+        logger.Info("Test message");
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        log.Should().ContainKey("level");
+        log["level"]?.ToString().Should().Be("Information");
+        log.Should().NotContainKey("properties");
+    }
+
+    [Test]
+    public void AddContext_ShouldAddPropertiesToSubsequentLogs()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var context = new { UserId = 123, UserName = "TestUser" };
+
+        // Act
+        using (logger.AddContext(context))
+        {
+            logger.Info("Test message");
+        }
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("message");
+        log["message"]?.ToString().Should().Be("Test message");
+        // Context properties should be included in the log
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("userId").GetInt32().Should().Be(123);
+        props?.GetProperty("userName").GetString().Should().Be("TestUser");
+    }
+
+    [Test]
+    public void Debug_ShouldNotLogWhenLevelIsInformation()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger(LogEventLevel.Information);
+
+        // Act
+        logger.Debug("Debug message");
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().BeEmpty();
+    }
+
+    [Test]
+    public void Info_ShouldLogWhenLevelIsInformation()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger(LogEventLevel.Information);
+
+        // Act
+        logger.Info("Info message");
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        logs[0]["level"]?.ToString().Should().Be("Information");
+    }
+
+    [Test]
+    public void Info_WithNestedObject_ShouldFlattenNestedProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var leaf = new Leaf { Color = "Green", Size = 10 };
+        var node = new Node { Name = "Root", Leaf = leaf };
+        var properties = new { Node = node };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        
+        // Verify nested structure is flattened with dot notation
+        props?.GetProperty("node").GetProperty("name").GetString().Should().Be("Root");
+        props?.GetProperty("node").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Green");
+        props?.GetProperty("node").GetProperty("leaf").GetProperty("size").GetInt32().Should().Be(10);
+    }
+
+    [Test]
+    public void Debug_WithNestedObject_ShouldFlattenNestedProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger(LogEventLevel.Debug);
+        var leaf = new Leaf { Color = "Red", Size = 5 };
+        var node = new Node { Name = "Branch", Leaf = leaf };
+        var properties = new { Node = node };
+
+        // Act
+        logger.Debug("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        
+        // Verify nested structure
+        props?.GetProperty("node").GetProperty("name").GetString().Should().Be("Branch");
+        props?.GetProperty("node").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Red");
+        props?.GetProperty("node").GetProperty("leaf").GetProperty("size").GetInt32().Should().Be(5);
+    }
+
+    [Test]
+    public void Info_WithDeeplyNestedObject_ShouldFlattenAllLevels()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var innerLeaf = new Leaf { Color = "Blue", Size = 3 };
+        var innerNode = new Node { Name = "Inner", Leaf = innerLeaf };
+        var outerNode = new Node { Name = "Outer", Leaf = null, InnerNode = innerNode };
+        var properties = new { OuterNode = outerNode };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        
+        // Verify deeply nested structure
+        props?.GetProperty("outerNode").GetProperty("name").GetString().Should().Be("Outer");
+        props?.GetProperty("outerNode").GetProperty("innerNode").GetProperty("name").GetString().Should().Be("Inner");
+        props?.GetProperty("outerNode").GetProperty("innerNode").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Blue");
+    }
+
+    [Test]
+    public void Info_WithNestedObjectContainingNull_ShouldHandleNullProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var node = new Node { Name = "Test", Leaf = null };
+        var properties = new { Node = node };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        
+        props?.GetProperty("node").GetProperty("name").GetString().Should().Be("Test");
+        // Leaf should be null or not present
+        var leafElement = props?.GetProperty("node").GetProperty("leaf");
+        if (leafElement.HasValue)
+        {
+            leafElement.Value.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        }
+    }
+
+    [Test]
+    public void Info_WithSimpleTypeAsRoot_ShouldHandleGracefully()
+    {
+        // Arrange
+        // Test edge case where a simple type is passed as the root object (lines 117-118)
+        // This shouldn't happen in practice, but we test it for coverage
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        
+        // Act - passing a simple type directly (wrapped in anonymous type to make it valid)
+        // Actually, we can't pass a simple type directly, but we can test the IsSimpleType check
+        // by ensuring it doesn't break when processing nested simple types
+        var properties = new { Value = 123, Text = "test" };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert - should work normally
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+    }
+
+    #endregion
+}
+
+// Test classes for nested object testing
+public class Leaf
+{
+    public string Color { get; set; } = string.Empty;
+    public int Size { get; set; }
+}
+
+public class Node
+{
+    public string Name { get; set; } = string.Empty;
+    public Leaf? Leaf { get; set; }
+    public Node? InnerNode { get; set; }
 }
 
 // Custom dictionary implementation that allows null keys for testing

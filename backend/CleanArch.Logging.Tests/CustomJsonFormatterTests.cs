@@ -606,6 +606,98 @@ public class CustomJsonFormatterTests : UnitTestBase<CustomJsonFormatter>
         });
     }
 
+    [Test]
+    public void Format_WithDictionaryValueWithNullKey_ShouldHandleNullKey()
+    {
+        // Arrange
+        // Create a dictionary value with a null key to test the null coalescing branch
+        var dictionary = new DictionaryValue(new[]
+        {
+            new KeyValuePair<ScalarValue, LogEventPropertyValue>(
+                new ScalarValue(null), // Null key
+                new ScalarValue("Value1"))
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Dictionary", dictionary }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+        var json = _output.ToString();
+        json.Should().Contain("null"); // Should convert null key to "null" string
+    }
+
+    [Test]
+    public void Format_WithUnknownPropertyValueType_ShouldUseToString()
+    {
+        // Arrange
+        // Create a custom property value type that doesn't match any known type
+        // This will hit the default case in the switch expression (line 125)
+        var customValue = new CustomPropertyValue("CustomValue");
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Custom", customValue }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+        var json = _output.ToString();
+        json.Should().Contain("CustomValue"); // Should use ToString() result
+    }
+
+    [Test]
+    public void Format_WithLowercaseFirstCharPropertyName_ShouldNotConvert()
+    {
+        // Arrange
+        // Test ToCamelCase with string that already starts with lowercase (line 132 - return str branch)
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "alreadyCamelCase", new ScalarValue("Value") }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("alreadyCamelCase"); // Should remain unchanged
+    }
+
+    [Test]
+    public void Format_WithDictionaryValueWithEmptyStringKey_ShouldHandleEmptyKey()
+    {
+        // Arrange
+        // Test ToCamelCase with empty string from dictionary key formatting (line 132 - return str branch for empty string)
+        // FormatPropertyValue on ScalarValue("") returns "", and ToString() on "" returns "", which hits the empty string branch
+        var dictionary = new DictionaryValue(new[]
+        {
+            new KeyValuePair<ScalarValue, LogEventPropertyValue>(
+                new ScalarValue(""), // Empty string key
+                new ScalarValue("Value1"))
+        });
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Dictionary", dictionary }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            SystemUnderTest.Format(logEvent, _output);
+        });
+    }
+
     #endregion
 
     #region Helper Methods
@@ -644,6 +736,26 @@ public class CustomJsonFormatterTests : UnitTestBase<CustomJsonFormatter>
         public override void WriteLine(string? value)
         {
             throw new InvalidOperationException("Writer throws");
+        }
+    }
+
+    private class CustomPropertyValue : LogEventPropertyValue
+    {
+        private readonly string _value;
+
+        public CustomPropertyValue(string value)
+        {
+            _value = value;
+        }
+
+        public override void Render(TextWriter output, string? format = null, IFormatProvider? formatProvider = null)
+        {
+            output.Write(_value);
+        }
+
+        public override string ToString()
+        {
+            return _value;
         }
     }
 
