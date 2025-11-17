@@ -310,7 +310,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         // Use custom dictionary that allows null keys (Hashtable and Dictionary don't allow null keys in .NET Core)
-        IDictionary properties = new NullableKeyDictionary { { null, "Value1" }, { "Key2", "Value2" } };
+        IDictionary properties = new NullableKeyDictionary { { null!, "Value1" }, { "Key2", "Value2" } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -792,7 +792,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         // Test ConvertToDictionary with dictionary entry that has null key (line 91)
-        IDictionary properties = new NullableKeyDictionary { { null, "Value1" }, { "Key2", "Value2" } };
+        IDictionary properties = new NullableKeyDictionary { { null!, "Value1" }, { "Key2", "Value2" } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -1550,7 +1550,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        IDictionary dict = new NullableKeyDictionary { { "validKey", "validValue" }, { null, "nullKeyValue" } };
+        IDictionary dict = new NullableKeyDictionary { { "validKey", "validValue" }, { null!, "nullKeyValue" } };
 
         // Act
         logger.Debug("Test message", dict);
@@ -1664,9 +1664,9 @@ internal class NullableKeyDictionary : IDictionary
 
     public void CopyTo(Array array, int index)
     {
-        foreach (var item in _items)
+        foreach (var item in _items.Where(kvp => kvp.Key is not null))
         {
-            array.SetValue(new DictionaryEntry(item.Key, item.Value), index++);
+            array.SetValue(new DictionaryEntry(item.Key!, item.Value), index++);
         }
     }
 
@@ -1687,7 +1687,7 @@ internal class NullableKeyDictionary : IDictionary
             _enumerator = enumerator;
         }
 
-        public DictionaryEntry Entry => new(_enumerator.Current.Key, _enumerator.Current.Value);
+        public DictionaryEntry Entry => new(_enumerator.Current.Key!, _enumerator.Current.Value);
         public object Key => _enumerator.Current.Key!;
         public object? Value => _enumerator.Current.Value;
         public object Current => Entry;
