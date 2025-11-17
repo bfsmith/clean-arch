@@ -254,12 +254,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     public void Debug_WithDictionary_ShouldNotThrow()
     {
         // Arrange
-        var properties = new Dictionary<string, object?>
-        {
-            { "Key1", "Value1" },
-            { "Key2", 123 },
-            { "Key3", true }
-        };
+        var properties = new Dictionary<string, object?> { { "Key1", "Value1" }, { "Key2", 123 }, { "Key3", true } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -272,11 +267,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     public void Info_WithIDictionary_ShouldNotThrow()
     {
         // Arrange
-        IDictionary properties = new Hashtable
-        {
-            { "Key1", "Value1" },
-            { "Key2", 123 }
-        };
+        IDictionary properties = new Hashtable { { "Key1", "Value1" }, { "Key2", 123 } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -291,9 +282,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Arrange
         var properties = new Dictionary<string, object?>
         {
-            { "Key1", "Value1" },
-            { "Key2", null },
-            { "Key3", "Value3" }
+            { "Key1", "Value1" }, { "Key2", null }, { "Key3", "Value3" }
         };
 
         // Act & Assert
@@ -307,11 +296,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     public void AddContext_WithDictionary_ShouldNotThrow()
     {
         // Arrange
-        var context = new Dictionary<string, object?>
-        {
-            { "UserId", 123 },
-            { "UserName", "TestUser" }
-        };
+        var context = new Dictionary<string, object?> { { "UserId", 123 }, { "UserName", "TestUser" } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -325,11 +310,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         // Use custom dictionary that allows null keys (Hashtable and Dictionary don't allow null keys in .NET Core)
-        IDictionary properties = new NullableKeyDictionary
-        {
-            { null, "Value1" },
-            { "Key2", "Value2" }
-        };
+        IDictionary properties = new NullableKeyDictionary { { null, "Value1" }, { "Key2", "Value2" } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -424,7 +405,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     private class TestClassWithThrowingProperty
     {
         public string SafeProperty { get; set; } = "Safe";
-        
+
         public string ThrowingProperty
         {
             get => throw new InvalidOperationException("Property access failed");
@@ -434,14 +415,14 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     private class TestClassWithMultipleThrowingProperties
     {
         public string SafeProperty1 { get; set; } = "Safe1";
-        
+
         public string ThrowingProperty1
         {
             get => throw new InvalidOperationException("Property 1 failed");
         }
-        
+
         public string SafeProperty2 { get; set; } = "Safe2";
-        
+
         public string ThrowingProperty2
         {
             get => throw new ArgumentException("Property 2 failed");
@@ -451,7 +432,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     private class TestClassWithNotSupportedException
     {
         public string SafeProperty { get; set; } = "Safe";
-        
+
         public string ThrowingProperty
         {
             get => throw new NotSupportedException("Property access not supported");
@@ -472,18 +453,9 @@ public class LoggerExtensionsTests : UnitTestBase<object>
             {
                 Id = 123,
                 Name = "TestUser",
-                Address = new
-                {
-                    Street = "123 Main St",
-                    City = "TestCity",
-                    ZipCode = "12345"
-                }
+                Address = new { Street = "123 Main St", City = "TestCity", ZipCode = "12345" }
             },
-            Metadata = new Dictionary<string, object?>
-            {
-                { "Key1", "Value1" },
-                { "Key2", 456 }
-            }
+            Metadata = new Dictionary<string, object?> { { "Key1", "Value1" }, { "Key2", 456 } }
         };
 
         // Act & Assert
@@ -500,7 +472,14 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var properties = new
         {
             Items = new[] { "Item1", "Item2", "Item3" },
-            Numbers = new List<int> { 1, 2, 3, 4, 5 },
+            Numbers = new List<int>
+            {
+                1,
+                2,
+                3,
+                4,
+                5
+            },
             Dictionary = new Dictionary<string, int> { { "Key", 123 } }
         };
 
@@ -522,11 +501,11 @@ public class LoggerExtensionsTests : UnitTestBase<object>
 
         // Act
         var act = () => logger.Info("Test message", parent);
-        
+
         // Assert - Should complete without hanging or throwing
         act.Should().NotThrow();
 
-    var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
         logs.Should().HaveCount(1);
         var log = logs[0];
         log.Should().ContainKey("message");
@@ -618,11 +597,11 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         MockLogger.Setup(x => x.Log(
-            It.IsAny<LogLevel>(),
-            It.IsAny<EventId>(),
-            It.IsAny<It.IsAnyType>(),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
             .Throws<InvalidOperationException>();
 
         // Act & Assert
@@ -654,11 +633,11 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         MockLogger.Setup(x => x.Log(
-            It.IsAny<LogLevel>(),
-            It.IsAny<EventId>(),
-            It.IsAny<It.IsAnyType>(),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
             .Throws<Exception>();
 
         // Act & Assert
@@ -813,11 +792,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         // Test ConvertToDictionary with dictionary entry that has null key (line 91)
-        IDictionary properties = new NullableKeyDictionary
-        {
-            { null, "Value1" },
-            { "Key2", "Value2" }
-        };
+        IDictionary properties = new NullableKeyDictionary { { null, "Value1" }, { "Key2", "Value2" } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -833,10 +808,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Test the null coalescing branch on line 91: entry.Key.ToString() ?? "null"
         // Create a key object whose ToString() returns null
         var nullToStringKey = new NullToStringKey();
-        IDictionary properties = new NullableKeyDictionary
-        {
-            { nullToStringKey, "Value1" }
-        };
+        IDictionary properties = new NullableKeyDictionary { { nullToStringKey, "Value1" } };
 
         // Act & Assert
         Assert.DoesNotThrow(() =>
@@ -1059,7 +1031,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var log = logs[0];
         log.Should().ContainKey("properties");
         var props = log["properties"] as System.Text.Json.JsonElement?;
-        
+
         // Verify nested structure is flattened with dot notation
         props?.GetProperty("node").GetProperty("name").GetString().Should().Be("Root");
         props?.GetProperty("node").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Green");
@@ -1084,7 +1056,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var log = logs[0];
         log.Should().ContainKey("properties");
         var props = log["properties"] as System.Text.Json.JsonElement?;
-        
+
         // Verify nested structure
         props?.GetProperty("node").GetProperty("name").GetString().Should().Be("Branch");
         props?.GetProperty("node").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Red");
@@ -1110,11 +1082,12 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var log = logs[0];
         log.Should().ContainKey("properties");
         var props = log["properties"] as System.Text.Json.JsonElement?;
-        
+
         // Verify deeply nested structure
         props?.GetProperty("outerNode").GetProperty("name").GetString().Should().Be("Outer");
         props?.GetProperty("outerNode").GetProperty("innerNode").GetProperty("name").GetString().Should().Be("Inner");
-        props?.GetProperty("outerNode").GetProperty("innerNode").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Blue");
+        props?.GetProperty("outerNode").GetProperty("innerNode").GetProperty("leaf").GetProperty("color").GetString()
+            .Should().Be("Blue");
     }
 
     [Test]
@@ -1134,7 +1107,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var log = logs[0];
         log.Should().ContainKey("properties");
         var props = log["properties"] as System.Text.Json.JsonElement?;
-        
+
         props?.GetProperty("node").GetProperty("name").GetString().Should().Be("Test");
         // Leaf should be null or not present
         var leafElement = props?.GetProperty("node").GetProperty("leaf");
@@ -1151,7 +1124,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Test edge case where a simple type is passed as the root object (lines 117-118)
         // This shouldn't happen in practice, but we test it for coverage
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        
+
         // Act - passing a simple type directly (wrapped in anonymous type to make it valid)
         // Actually, we can't pass a simple type directly, but we can test the IsSimpleType check
         // by ensuring it doesn't break when processing nested simple types
@@ -1185,9 +1158,9 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var log = logs[0];
         log.Should().ContainKey("properties");
         var props = log["properties"] as System.Text.Json.JsonElement?;
-        // Enums are converted as objects, so they'll be serialized
-        props?.GetProperty("status").Should().NotBeNull();
-        props?.GetProperty("priority").Should().NotBeNull();
+        // Enums are serialized as camelCase strings
+        props?.GetProperty("status").GetString().Should().Be("Active");
+        props?.GetProperty("priority").GetString().Should().Be("High");
     }
 
     [Test]
@@ -1259,12 +1232,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        var jagged = new int[][]
-        {
-            new[] { 1, 2, 3 },
-            new[] { 4, 5 },
-            new[] { 6, 7, 8, 9 }
-        };
+        var jagged = new int[][] { new[] { 1, 2, 3 }, new[] { 4, 5 }, new[] { 6, 7, 8, 9 } };
         var properties = new { Matrix = jagged };
 
         // Act
@@ -1285,11 +1253,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        var nested = new List<List<int>>
-        {
-            new List<int> { 1, 2, 3 },
-            new List<int> { 4, 5, 6 }
-        };
+        var nested = new List<List<int>> { new List<int> { 1, 2, 3 }, new List<int> { 4, 5, 6 } };
         var properties = new { Nested = nested };
 
         // Act
@@ -1311,10 +1275,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
         var leaf = new Leaf { Color = "Blue", Size = 5 };
-        var dict = new Dictionary<string, object?>
-        {
-            { "Node", new Node { Name = "Test", Leaf = leaf } }
-        };
+        var dict = new Dictionary<string, object?> { { "Node", new Node { Name = "Test", Leaf = leaf } } };
         var properties = new { Data = dict };
 
         // Act
@@ -1428,11 +1389,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        IDictionary properties = new Dictionary<string, object?>
-        {
-            { "Key1", "Value1" },
-            { "Key2", 123 }
-        };
+        IDictionary properties = new Dictionary<string, object?> { { "Key1", "Value1" }, { "Key2", 123 } };
 
         // Act
         logger.Info("Test message", properties);
@@ -1452,10 +1409,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        var obj = new ClassWithCollectionProperty
-        {
-            Items = new List<string> { "Item1", "Item2", "Item3" }
-        };
+        var obj = new ClassWithCollectionProperty { Items = new List<string> { "Item1", "Item2", "Item3" } };
         var properties = new { Data = obj };
 
         // Act
@@ -1477,10 +1431,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        var obj = new ClassWithDictionaryProperty
-        {
-            Metadata = new Dictionary<string, object?> { { "Key", "Value" } }
-        };
+        var obj = new ClassWithDictionaryProperty { Metadata = new Dictionary<string, object?> { { "Key", "Value" } } };
         var properties = new { Data = obj };
 
         // Act
@@ -1501,11 +1452,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     {
         // Arrange
         var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
-        var properties = new
-        {
-            Uri = new Uri("https://example.com"),
-            Version = new Version(1, 2, 3, 4)
-        };
+        var properties = new { Uri = new Uri("https://example.com"), Version = new Version(1, 2, 3, 4) };
 
         // Act
         logger.Info("Test message", properties);
@@ -1539,6 +1486,84 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     }
 
     #endregion
+
+
+    [Test]
+    public void AddContext_WhenBeginScopeThrows_ShouldReturnNull()
+    {
+        // Arrange
+        var mockLogger = new Mock<ILogger>();
+        mockLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
+            .Throws<InvalidOperationException>();
+        var context = new { Key = "Value" };
+
+        // Act
+        var result = mockLogger.Object.AddContext(context);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Test]
+    public void Debug_WithSimpleType_ShouldNotIncludeInProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var simpleValue = 42;
+
+        // Act
+        logger.Debug("Test message", simpleValue);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        // Simple types passed directly should not create properties
+        log.Should().NotContainKey("properties");
+    }
+
+    [Test]
+    public void Debug_WithUnsupportedType_ShouldConvertToString()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var methodInfo = typeof(string).GetMethod("ToString", Array.Empty<Type>())!;
+        var type = typeof(string);
+        var assembly = typeof(string).Assembly;
+
+        // Act
+        logger.Debug("Test message", new { Method = methodInfo, Type = type, Assembly = assembly });
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("method").GetString().Should().NotBeNullOrEmpty();
+        props?.GetProperty("type").GetString().Should().NotBeNullOrEmpty();
+        props?.GetProperty("assembly").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Test]
+    public void Debug_WithDictionaryContainingNullKeys_ShouldHandleGracefully()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        IDictionary dict = new NullableKeyDictionary { { "validKey", "validValue" }, { null, "nullKeyValue" } };
+
+        // Act
+        logger.Debug("Test message", dict);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("validKey").GetString().Should().Be("validValue");
+        props?.GetProperty("null").GetString().Should().Be("nullKeyValue");
+    }
 }
 
 // Test classes for edge case testing
@@ -1670,4 +1695,3 @@ internal class NullableKeyDictionary : IDictionary
         public void Reset() => _enumerator.Reset();
     }
 }
-

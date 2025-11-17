@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using CleanArch.Core;
 using CleanArch.Logging;
 
 namespace CleanArch.API.Controllers;
@@ -11,10 +12,12 @@ namespace CleanArch.API.Controllers;
 public class UserController : ControllerBase
 {
     private readonly ILogger<UserController> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
-    public UserController(ILogger<UserController> logger)
+    public UserController(ILogger<UserController> logger, ICurrentUserService currentUserService)
     {
         _logger = logger;
+        _currentUserService = currentUserService;
     }
     /// <summary>
     /// Public endpoint - no authentication required
@@ -38,16 +41,12 @@ public class UserController : ControllerBase
     [Authorize]
     public IActionResult GetProfile()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
-                     ?? User.FindFirst("sub")?.Value;
-        var username = User.FindFirst(ClaimTypes.Name)?.Value 
-                       ?? User.FindFirst("preferred_username")?.Value;
-        var email = User.FindFirst(ClaimTypes.Email)?.Value 
-                    ?? User.FindFirst("email")?.Value;
+        // Use ICurrentUserService to get the current user (lazily populated on first access)
+        var currentUser = _currentUserService.User;
 
-        using (_logger.AddContext(new { UserId = userId }))
+        using (_logger.AddContext(new { UserId = currentUser.Id }))
         {
-            _logger.Info("User profile accessed", new { name = username, email });
+            _logger.Info("User profile accessed", new { name = currentUser.Username, email = currentUser.Email });
         }
 
         return Ok(new
@@ -55,10 +54,11 @@ public class UserController : ControllerBase
             message = "This is a protected endpoint. Authentication required.",
             user = new
             {
-                userId,
-                username,
-                email,
-                claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList()
+                userId = currentUser.Id,
+                username = currentUser.Username,
+                email = currentUser.Email,
+                roles = currentUser.Roles,
+                isAuthenticated = currentUser.IsAuthenticated
             },
             timestamp = DateTime.UtcNow
         });

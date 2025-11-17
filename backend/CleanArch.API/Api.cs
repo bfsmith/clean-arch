@@ -5,6 +5,8 @@ using CleanArch.API.Configuration;
 using Microsoft.Extensions.Logging;
 using CleanArch.API.Middleware;
 using CleanArch.API.Extensions;
+using CleanArch.API.Services;
+using CleanArch.Core;
 using CleanArch.Logging;
 
 namespace CleanArch.API;
@@ -48,6 +50,7 @@ public class Api
         AddOpenTelemetry();
         AddControllers();
         AddAuthentication();
+        AddCurrentUserService();
         AddSwagger();
     }
 
@@ -97,6 +100,15 @@ public class Api
         });
 
         Builder.Services.AddAuthorization();
+    }
+
+    protected void AddCurrentUserService()
+    {
+        // Register IHttpContextAccessor if not already registered
+        Builder.Services.AddHttpContextAccessor();
+        
+        // Register ICurrentUserService as scoped (one instance per HTTP request)
+        Builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
     }
 
     protected void AddSwagger()

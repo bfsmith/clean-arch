@@ -162,6 +162,12 @@ public static class LoggerExtensions
             return value;
         }
 
+        // Return enums as-is (they'll be converted to strings in SanitizeValue)
+        if (type.IsEnum)
+        {
+            return value;
+        }
+
         // Handle dictionaries before collections (since dictionaries are also IEnumerable)
         if (value is IDictionary dictionary)
         {

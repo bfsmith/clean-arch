@@ -762,5 +762,110 @@ public class CustomJsonFormatterTests : UnitTestBase<CustomJsonFormatter>
     }
 
     #endregion
+
+    [Test]
+    public void Format_WithReflectionTypes_ShouldConvertToString()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var methodInfo = typeof(string).GetMethod("ToString", Array.Empty<Type>())!;
+        var propertyInfo = typeof(string).GetProperty("Length")!;
+        var type = typeof(string);
+        var assembly = typeof(string).Assembly;
+
+        // Act
+        logger.Debug("Test message", new
+        {
+            Method = methodInfo,
+            Property = propertyInfo,
+            Type = type,
+            Assembly = assembly
+        });
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("method").GetString().Should().NotBeNullOrEmpty();
+        props?.GetProperty("property").GetString().Should().NotBeNullOrEmpty();
+        props?.GetProperty("type").GetString().Should().NotBeNullOrEmpty();
+        props?.GetProperty("assembly").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Test]
+    public void Format_WithDelegate_ShouldConvertToString()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        Action action = () => Console.WriteLine("test");
+        Func<int, int> func = x => x * 2;
+
+        // Act
+        logger.Debug("Test message", new
+        {
+            Action = action,
+            Func = func
+        });
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("action").GetString().Should().NotBeNullOrEmpty();
+        props?.GetProperty("func").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Test]
+    public void Format_WithReflectionTypesAsScalarValue_ShouldConvertToString()
+    {
+        // Arrange
+        // Create LogEvent directly with reflection types as ScalarValue to test SanitizeValue
+        var methodInfo = typeof(string).GetMethod("ToString", Array.Empty<Type>())!;
+        var propertyInfo = typeof(string).GetProperty("Length")!;
+        var type = typeof(string);
+        var assembly = typeof(string).Assembly;
+        Action action = () => Console.WriteLine("test");
+        Func<int, int> func = x => x * 2;
+
+        var properties = new Dictionary<string, LogEventPropertyValue>
+        {
+            { "Method", new ScalarValue(methodInfo) },
+            { "Property", new ScalarValue(propertyInfo) },
+            { "Type", new ScalarValue(type) },
+            { "Assembly", new ScalarValue(assembly) },
+            { "Action", new ScalarValue(action) },
+            { "Func", new ScalarValue(func) }
+        };
+        var logEvent = CreateLogEvent("Test message", LogEventLevel.Information, properties);
+
+        // Act
+        SystemUnderTest.Format(logEvent, _output);
+        var json = _output.ToString();
+
+        // Assert
+        json.Should().Contain("properties");
+        json.Should().Contain("method");
+        json.Should().Contain("property");
+        json.Should().Contain("type");
+        json.Should().Contain("assembly");
+        json.Should().Contain("action");
+        json.Should().Contain("func");
+        // All should be strings (not objects)
+        var logs = TestLoggerHelper.ParseJsonLogs(json);
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("method").ValueKind.Should().Be(System.Text.Json.JsonValueKind.String);
+        props?.GetProperty("property").ValueKind.Should().Be(System.Text.Json.JsonValueKind.String);
+        props?.GetProperty("type").ValueKind.Should().Be(System.Text.Json.JsonValueKind.String);
+        props?.GetProperty("assembly").ValueKind.Should().Be(System.Text.Json.JsonValueKind.String);
+        props?.GetProperty("action").ValueKind.Should().Be(System.Text.Json.JsonValueKind.String);
+        props?.GetProperty("func").ValueKind.Should().Be(System.Text.Json.JsonValueKind.String);
+    }
 }
 

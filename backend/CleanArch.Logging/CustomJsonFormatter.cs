@@ -99,7 +99,8 @@ public class CustomJsonFormatter : ITextFormatter
             var json = JsonSerializer.Serialize(logObject, new JsonSerializerOptions
             {
                 WriteIndented = false,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
             });
             
             output.WriteLine(json);
@@ -138,6 +139,12 @@ public class CustomJsonFormatter : ITextFormatter
             return null;
 
         var type = value.GetType();
+
+        // Check if it's an enum - convert to string (not camelCase, use original name)
+        if (type.IsEnum)
+        {
+            return value.ToString();
+        }
 
         // Check if it's a reflection type or other unsupported type
         if (type.Namespace?.StartsWith("System.Reflection") == true ||
