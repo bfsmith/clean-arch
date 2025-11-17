@@ -156,7 +156,19 @@ public static class LoggerExtensions
             return value;
         }
 
-        // Handle collections
+        // Handle dictionaries before collections (since dictionaries are also IEnumerable)
+        if (value is IDictionary dictionary)
+        {
+            var dict = new Dictionary<string, object?>();
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                var key = entry.Key.ToString() ?? "null";
+                dict[key] = ConvertValue(entry.Value, visited);
+            }
+            return dict;
+        }
+
+        // Handle collections (but not dictionaries, which we handled above)
         if (value is System.Collections.IEnumerable enumerable && !(value is string))
         {
             var list = new List<object?>();

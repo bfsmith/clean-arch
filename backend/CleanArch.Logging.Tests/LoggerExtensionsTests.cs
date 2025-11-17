@@ -1163,6 +1163,422 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     }
 
     #endregion
+
+    #region Additional Edge Cases
+
+    [Test]
+    public void Info_WithEnumProperty_ShouldLogEnumValue()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { Status = TestStatus.Active, Priority = TestPriority.High };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        // Enums are converted as objects, so they'll be serialized
+        props?.GetProperty("status").Should().NotBeNull();
+        props?.GetProperty("priority").Should().NotBeNull();
+    }
+
+    [Test]
+    public void Info_WithStructProperty_ShouldLogStructProperties()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var point = new Point { X = 10, Y = 20 };
+        var properties = new { Location = point };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("location").GetProperty("x").GetInt32().Should().Be(10);
+        props?.GetProperty("location").GetProperty("y").GetInt32().Should().Be(20);
+    }
+
+    [Test]
+    public void Info_WithEmptyCollection_ShouldHandleEmptyCollection()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { Items = new List<string>(), Numbers = new int[0] };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("items").GetArrayLength().Should().Be(0);
+        props?.GetProperty("numbers").GetArrayLength().Should().Be(0);
+    }
+
+    [Test]
+    public void Info_WithCollectionContainingNull_ShouldHandleNullItems()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { Items = new[] { "Item1", null, "Item3" } };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var items = props?.GetProperty("items");
+        items?.GetArrayLength().Should().Be(3);
+        items?[0].GetString().Should().Be("Item1");
+        items?[1].ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        items?[2].GetString().Should().Be("Item3");
+    }
+
+    [Test]
+    public void Info_WithJaggedArray_ShouldHandleJaggedArray()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var jagged = new int[][]
+        {
+            new[] { 1, 2, 3 },
+            new[] { 4, 5 },
+            new[] { 6, 7, 8, 9 }
+        };
+        var properties = new { Matrix = jagged };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var matrix = props?.GetProperty("matrix");
+        matrix?.GetArrayLength().Should().Be(3);
+    }
+
+    [Test]
+    public void Info_WithCollectionContainingCollections_ShouldHandleNestedCollections()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var nested = new List<List<int>>
+        {
+            new List<int> { 1, 2, 3 },
+            new List<int> { 4, 5, 6 }
+        };
+        var properties = new { Nested = nested };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var nestedProp = props?.GetProperty("nested");
+        nestedProp?.GetArrayLength().Should().Be(2);
+    }
+
+    [Test]
+    public void Info_WithDictionaryContainingNestedObjects_ShouldFlattenNestedObjects()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var leaf = new Leaf { Color = "Blue", Size = 5 };
+        var dict = new Dictionary<string, object?>
+        {
+            { "Node", new Node { Name = "Test", Leaf = leaf } }
+        };
+        var properties = new { Data = dict };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var data = props?.GetProperty("data");
+        var node = data?.GetProperty("node");
+        node?.GetProperty("name").GetString().Should().Be("Test");
+        node?.GetProperty("leaf").GetProperty("color").GetString().Should().Be("Blue");
+    }
+
+    [Test]
+    public void Info_WithSharedObjectReference_ShouldConvertMultipleTimes()
+    {
+        // Arrange - same object referenced multiple times (not circular)
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var sharedLeaf = new Leaf { Color = "Red", Size = 10 };
+        var node1 = new Node { Name = "Node1", Leaf = sharedLeaf };
+        var node2 = new Node { Name = "Node2", Leaf = sharedLeaf };
+        var properties = new { Node1 = node1, Node2 = node2 };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert - should convert both references
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("node1").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Red");
+        props?.GetProperty("node2").GetProperty("leaf").GetProperty("color").GetString().Should().Be("Red");
+    }
+
+    [Test]
+    public void Info_WithSelfReferencingObject_ShouldHandleSelfReference()
+    {
+        // Arrange - object that references itself
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var selfRef = new SelfReferencingObject { Name = "Self", Value = 42 };
+        selfRef.Self = selfRef;
+        var properties = new { SelfRef = selfRef };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert - should handle circular reference gracefully
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        // Self reference should be detected and not cause infinite loop
+    }
+
+    [Test]
+    public void Info_WithNullableValueTypes_ShouldHandleNullableTypes()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new
+        {
+            NullableInt = (int?)42,
+            NullableIntNull = (int?)null,
+            NullableDateTime = (DateTime?)DateTime.Now,
+            NullableDateTimeNull = (DateTime?)null
+        };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("nullableInt").GetInt32().Should().Be(42);
+        props?.GetProperty("nullableIntNull").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+    }
+
+    [Test]
+    public void Info_WithTypeWithNoProperties_ShouldReturnEmptyDictionary()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var empty = new EmptyClass();
+        var properties = new { Empty = empty };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var emptyProp = props?.GetProperty("empty");
+        // Should be an empty object or handle gracefully
+        emptyProp?.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Object);
+    }
+
+    [Test]
+    public void Info_WithDictionaryAsRoot_ShouldHandleDictionaryDirectly()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        IDictionary properties = new Dictionary<string, object?>
+        {
+            { "Key1", "Value1" },
+            { "Key2", 123 }
+        };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        props?.GetProperty("key1").GetString().Should().Be("Value1");
+        props?.GetProperty("key2").GetInt32().Should().Be(123);
+    }
+
+    [Test]
+    public void Info_WithPropertyReturningCollection_ShouldHandleCollectionProperty()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var obj = new ClassWithCollectionProperty
+        {
+            Items = new List<string> { "Item1", "Item2", "Item3" }
+        };
+        var properties = new { Data = obj };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var items = props?.GetProperty("data").GetProperty("items");
+        items?.GetArrayLength().Should().Be(3);
+        items?[0].GetString().Should().Be("Item1");
+    }
+
+    [Test]
+    public void Info_WithPropertyReturningDictionary_ShouldHandleDictionaryProperty()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var obj = new ClassWithDictionaryProperty
+        {
+            Metadata = new Dictionary<string, object?> { { "Key", "Value" } }
+        };
+        var properties = new { Data = obj };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var metadata = props?.GetProperty("data").GetProperty("metadata");
+        metadata?.GetProperty("key").GetString().Should().Be("Value");
+    }
+
+    [Test]
+    public void Info_WithSpecialTypes_ShouldHandleSpecialTypes()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new
+        {
+            Uri = new Uri("https://example.com"),
+            Version = new Version(1, 2, 3, 4)
+        };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        // Special types should be handled (either as simple types or converted)
+    }
+
+    [Test]
+    public void Info_WithEmptyDictionary_ShouldHandleEmptyDictionary()
+    {
+        // Arrange
+        var (logger, output) = TestLoggerHelper.CreateCapturingLogger();
+        var properties = new { EmptyDict = new Dictionary<string, object?>() };
+
+        // Act
+        logger.Info("Test message", properties);
+
+        // Assert
+        var logs = TestLoggerHelper.ParseJsonLogs(output.ToString());
+        logs.Should().HaveCount(1);
+        var log = logs[0];
+        log.Should().ContainKey("properties");
+        var props = log["properties"] as System.Text.Json.JsonElement?;
+        var emptyDict = props?.GetProperty("emptyDict");
+        emptyDict?.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Object);
+    }
+
+    #endregion
+}
+
+// Test classes for edge case testing
+public enum TestStatus
+{
+    Inactive,
+    Active,
+    Pending
+}
+
+public enum TestPriority
+{
+    Low,
+    Medium,
+    High
+}
+
+public struct Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public class SelfReferencingObject
+{
+    public string Name { get; set; } = string.Empty;
+    public int Value { get; set; }
+    public SelfReferencingObject? Self { get; set; }
+}
+
+public class EmptyClass
+{
+    // No public properties
+}
+
+public class ClassWithCollectionProperty
+{
+    public List<string> Items { get; set; } = new();
+}
+
+public class ClassWithDictionaryProperty
+{
+    public Dictionary<string, object?> Metadata { get; set; } = new();
 }
 
 // Test classes for nested object testing
