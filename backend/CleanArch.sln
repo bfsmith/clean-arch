@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CleanArch.UnitTests", "Clea
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CleanArch.Logging.Tests", "CleanArch.Logging.Tests\CleanArch.Logging.Tests.csproj", "{155101FE-789C-4C30-874C-7C9B31E09C46}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Libraries", "Libraries", "{AE275856-E5F0-428E-80B5-261328AA57B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,10 @@ Global
 		{155101FE-789C-4C30-874C-7C9B31E09C46}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{155101FE-789C-4C30-874C-7C9B31E09C46}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{155101FE-789C-4C30-874C-7C9B31E09C46}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8D70542C-BE50-4EA7-B40C-6ED78E6F1573} = {AE275856-E5F0-428E-80B5-261328AA57B1}
+		{155101FE-789C-4C30-874C-7C9B31E09C46} = {AE275856-E5F0-428E-80B5-261328AA57B1}
+		{D96C6233-0773-45CA-A4E3-CFA5A94C58CD} = {AE275856-E5F0-428E-80B5-261328AA57B1}
 	EndGlobalSection
 EndGlobal

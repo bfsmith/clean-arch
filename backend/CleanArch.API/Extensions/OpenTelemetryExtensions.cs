@@ -1,10 +1,12 @@
+using System.Linq;
+using CleanArch.API.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using CleanArch.API.Configuration;
 
 namespace CleanArch.API.Extensions;
 
@@ -24,20 +26,21 @@ public static class OpenTelemetryExtensions
         OpenTelemetryOptions options)
     {
         var otlpEndpoint = options.OtlpEndpoint;
-        var serviceName = options.ServiceName;
-        var serviceVersion = options.ServiceVersion;
+        var requestPathsToIgnore = options.RequestPathsToIgnore;
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
         // Configure resource attributes
+        var attributes = new Dictionary<string, object> { ["deployment.environment"] = environment, };
+
         var resourceBuilder = ResourceBuilder
             .CreateDefault()
             .AddService(
-                serviceName: serviceName,
-                serviceVersion: serviceVersion)
-            .AddAttributes(new Dictionary<string, object>
-            {
-                ["deployment.environment"] = environment
-            });
+                serviceName: options.ServiceName,
+                serviceNamespace: options.Namespace,
+                serviceVersion: options.ServiceVersion,
+                !string.IsNullOrWhiteSpace(options.InstanceId),
+                string.IsNullOrWhiteSpace(options.InstanceId) ? null : options.InstanceId)
+            .AddAttributes(attributes);
 
         // Configure Tracing
         services.AddOpenTelemetry()
@@ -58,14 +61,27 @@ public static class OpenTelemetryExtensions
                             activity.SetTag("http.response.status_code", response.StatusCode);
                         };
                     })
-                    .AddHttpClientInstrumentation(options =>
+                    .AddHttpClientInstrumentation(httpClientOptions =>
                     {
-                        options.RecordException = true;
-                    })
-                    .AddOtlpExporter(options =>
+                        httpClientOptions.RecordException = true;
+                        if (requestPathsToIgnore.Count > 0)
+                        {
+                            httpClientOptions.FilterHttpRequestMessage = (request) =>
+                            {
+                                var requestPath = request.RequestUri?.AbsolutePath ?? string.Empty;
+                                return !requestPathsToIgnore.Any(path =>
+                                    requestPath.StartsWith(path, StringComparison.OrdinalIgnoreCase));
+                            };
+                        }
+                    });
+                builder.AddOtlpExporter(options =>
+                {
+                    var a = new OtlpExporterOptions();
+                    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     {
                         options.Endpoint = new Uri(otlpEndpoint);
-                    });
+                    }
+                });
             })
             .WithMetrics(builder =>
             {
@@ -76,20 +92,24 @@ public static class OpenTelemetryExtensions
                     .AddRuntimeInstrumentation()
                     .AddOtlpExporter(options =>
                     {
-                        options.Endpoint = new Uri(otlpEndpoint);
+                        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                        {
+                            options.Endpoint = new Uri(otlpEndpoint);
+                        }
                     });
             })
             .WithLogging(builder =>
             {
-                builder
-                    .SetResourceBuilder(resourceBuilder)
-                    .AddOtlpExporter(options =>
+                builder.SetResourceBuilder(resourceBuilder);
+                builder.AddOtlpExporter(options =>
+                {
+                    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     {
                         options.Endpoint = new Uri(otlpEndpoint);
-                    });
+                    }
+                });
             });
 
         return services;
     }
 }
-

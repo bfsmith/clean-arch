@@ -23,6 +23,7 @@ public static class TestLoggerHelper
         
         var serilogLogger = new LoggerConfiguration()
             .MinimumLevel.Is(minimumLevel)
+            .Enrich.FromLogContext() // Required to capture properties from LogContext.PushProperty
             .WriteTo.Sink(new TextWriterSink(output, formatter))
             .CreateLogger();
 

@@ -408,6 +408,19 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         });
     }
 
+    [Test]
+    public void Error_WithObjectWithNotSupportedException_ShouldNotThrow()
+    {
+        // Arrange
+        var properties = new TestClassWithNotSupportedException();
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            MockLogger.Object.Error("Test message", properties);
+        });
+    }
+
     private class TestClassWithThrowingProperty
     {
         public string SafeProperty { get; set; } = "Safe";
@@ -432,6 +445,16 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         public string ThrowingProperty2
         {
             get => throw new ArgumentException("Property 2 failed");
+        }
+    }
+
+    private class TestClassWithNotSupportedException
+    {
+        public string SafeProperty { get; set; } = "Safe";
+        
+        public string ThrowingProperty
+        {
+            get => throw new NotSupportedException("Property access not supported");
         }
     }
 
@@ -783,25 +806,6 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         {
             MockLogger.Object.AddContext(context);
         });
-    }
-
-    [Test]
-    public void AddContext_WhenBeginScopeThrowsAfterConversion_ShouldReturnNull()
-    {
-        // Arrange
-        // This tests the catch block in AddContext (lines 41-44)
-        // We make BeginScope throw after ConvertToDictionary succeeds
-        // Override the default BeginScope setup to throw instead
-        MockLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
-            .Throws<InvalidOperationException>();
-
-        var context = new { UserId = 123 };
-
-        // Act
-        var result = MockLogger.Object.AddContext(context);
-
-        // Assert
-        result.Should().BeNull(); // Should return null when exception occurs (lines 41-44)
     }
 
     [Test]

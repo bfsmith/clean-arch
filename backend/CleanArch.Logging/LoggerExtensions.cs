@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using Serilog.Context;
 
 namespace CleanArch.Logging;
 
@@ -36,8 +36,8 @@ public static class LoggerExtensions
 
             try
             {
-                var properties = ConvertToDictionary(context);
-                return logger.BeginScope(properties);
+                // Use Serilog's LogContext to leverage its built-in destructuring
+                return PushPropertiesToLogContext(context);
             }
             catch
             {
@@ -57,19 +57,19 @@ public static class LoggerExtensions
                 return;
             }
 
-            var propertyDict = ConvertToDictionary(properties);
-            
-            // Use BeginScope to add properties without modifying the message template
+            // Use Serilog's LogContext.PushProperty to leverage its built-in destructuring
+            // This handles exceptions, circular references, and complex objects automatically
+            // The CustomJsonFormatter will flatten the scope into the properties object
             try
             {
-                using (logger.BeginScope(propertyDict))
+                using (PushPropertiesToLogContext(properties))
                 {
                     logger.Log(logLevel, message);
                 }
             }
             catch
             {
-                // If BeginScope throws, fall back to logging without scope
+                // If LogContext throws, fall back to logging without scope
                 logger.Log(logLevel, message);
             }
         }
@@ -79,135 +79,95 @@ public static class LoggerExtensions
         }
     }
 
-    private static Dictionary<string, object?> ConvertToDictionary(object obj)
+    /// <summary>
+    /// Pushes properties to Serilog's LogContext using its built-in destructuring.
+    /// This leverages Serilog's powerful destructuring which handles exceptions,
+    /// circular references, and complex objects automatically.
+    /// </summary>
+    private static IDisposable? PushPropertiesToLogContext(object properties)
     {
-        return ConvertToDictionary(obj, new HashSet<object>(ReferenceEqualityComparer.Instance));
-    }
+        if (properties == null)
+            return null;
 
-    private static Dictionary<string, object?> ConvertToDictionary(object obj, HashSet<object> visited)
-    {
-        var dict = new Dictionary<string, object?>();
-
-        // Prevent circular references
-        if (visited.Contains(obj))
-        {
-            return dict;
-        }
-        visited.Add(obj);
-
+        var disposables = new List<IDisposable>();
+        
         try
         {
-            // Handle dictionaries
-            if (obj is IDictionary dictionary)
+            // If it's already a dictionary, push each key-value pair
+            if (properties is IDictionary dictionary)
             {
                 foreach (DictionaryEntry entry in dictionary)
                 {
-                    // Handle null keys gracefully
-                    var key = entry.Key.ToString() ?? "null";
-                    dict[key] = ConvertValue(entry.Value, visited);
+                    var key = entry.Key?.ToString() ?? "null";
+                    // Serilog will destructure the value automatically, handling exceptions, circular refs, etc.
+                    var disposable = LogContext.PushProperty(key, entry.Value, destructureObjects: true);
+                    disposables.Add(disposable);
                 }
-                return dict;
             }
-
-            // Handle objects using reflection
-            var type = obj.GetType();
-            
-            // Skip primitive types, strings, and other simple types
-            if (IsSimpleType(type))
+            else
             {
-                return dict;
+                // For objects, use reflection to get properties but let Serilog destructure the values
+                // This gives us flat property names while leveraging Serilog's destructuring for complex values
+                var type = properties.GetType();
+                var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                
+                foreach (var prop in props)
+                {
+                    try
+                    {
+                        var value = prop.GetValue(properties);
+                        // Serilog will destructure the value, handling exceptions, circular references, etc.
+                        var disposable = LogContext.PushProperty(prop.Name, value, destructureObjects: true);
+                        disposables.Add(disposable);
+                    }
+                    catch
+                    {
+                        // Skip properties that can't be read (e.g., throw exceptions)
+                        // Serilog's destructuring would handle this, but we catch it here to continue with other properties
+                    }
+                }
             }
 
-            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            // Return a composite disposable that disposes all
+            return disposables.Count > 0 ? new CompositeDisposable(disposables) : null;
+        }
+        catch
+        {
+            // Dispose any that were successfully created
+            foreach (var disposable in disposables)
+            {
+                try { disposable.Dispose(); } catch { }
+            }
+            return null;
+        }
+    }
 
-            foreach (var property in properties)
+    private class CompositeDisposable : IDisposable
+    {
+        private readonly List<IDisposable> _disposables;
+
+        public CompositeDisposable(List<IDisposable> disposables)
+        {
+            _disposables = disposables;
+        }
+
+        public void Dispose()
+        {
+            foreach (var disposable in _disposables)
             {
                 try
                 {
-                    var value = property.GetValue(obj);
-                    dict[property.Name] = ConvertValue(value, visited);
+                    disposable.Dispose();
                 }
                 catch
                 {
-                    // Skip properties that can't be read
+                    // Swallow exceptions during disposal
                 }
             }
         }
-        finally
-        {
-            visited.Remove(obj);
-        }
-
-        return dict;
     }
 
-    private static object? ConvertValue(object? value, HashSet<object> visited)
-    {
-        if (value == null)
-        {
-            return null;
-        }
-
-        var type = value.GetType();
-
-        // Return simple types as-is
-        if (IsSimpleType(type))
-        {
-            return value;
-        }
-
-        // Handle dictionaries before collections (since dictionaries are also IEnumerable)
-        if (value is IDictionary dictionary)
-        {
-            var dict = new Dictionary<string, object?>();
-            foreach (DictionaryEntry entry in dictionary)
-            {
-                var key = entry.Key.ToString() ?? "null";
-                dict[key] = ConvertValue(entry.Value, visited);
-            }
-            return dict;
-        }
-
-        // Handle collections (but not dictionaries, which we handled above)
-        if (value is System.Collections.IEnumerable enumerable && !(value is string))
-        {
-            var list = new List<object?>();
-            foreach (var item in enumerable)
-            {
-                list.Add(ConvertValue(item, visited));
-            }
-            return list;
-        }
-
-        // Recursively convert complex objects
-        return ConvertToDictionary(value, visited);
-    }
-
-    private static bool IsSimpleType(Type type)
-    {
-        return type.IsPrimitive ||
-               type == typeof(string) ||
-               type == typeof(decimal) ||
-               type == typeof(DateTime) ||
-               type == typeof(DateTimeOffset) ||
-               type == typeof(TimeSpan) ||
-               type == typeof(Guid) ||
-               (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>));
-    }
-
-    private class ReferenceEqualityComparer : IEqualityComparer<object>
-    {
-        public static readonly ReferenceEqualityComparer Instance = new();
-
-        public new bool Equals(object? x, object? y)
-        {
-            return ReferenceEquals(x, y);
-        }
-
-        public int GetHashCode(object obj)
-        {
-            return RuntimeHelpers.GetHashCode(obj);
-        }
-    }
 }
+
+
 

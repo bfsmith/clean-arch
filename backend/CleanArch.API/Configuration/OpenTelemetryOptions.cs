@@ -29,6 +29,24 @@ public class OpenTelemetryOptions
     /// Required. This value appears in traces, metrics, and logs.
     /// </summary>
     public string ServiceVersion { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the namespace used to organize services in telemetry data.
+    /// Defaults to "default" if not specified.
+    /// </summary>
+    public string Namespace { get; set; } = "default";
+
+    /// <summary>
+    /// Gets or sets the instance ID used to uniquely identify this service instance in telemetry data.
+    /// Optional. If not specified, the instance ID will not be included in telemetry data.
+    /// </summary>
+    public string? InstanceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the list of request paths that should be ignored by HTTP client instrumentation.
+    /// Optional. If not specified, all requests will be captured.
+    /// </summary>
+    public List<string> RequestPathsToIgnore { get; set; } = new();
 }
 
 /// <summary>
@@ -48,10 +66,10 @@ public static class OpenTelemetryOptionsExtensions
         var options = section.Get<OpenTelemetryOptions>() ?? new OpenTelemetryOptions();
 
         // Validate required properties
-        if (string.IsNullOrWhiteSpace(options.OtlpEndpoint))
-        {
-            throw new InvalidOperationException($"{OpenTelemetryOptions.SectionName}:{nameof(OpenTelemetryOptions.OtlpEndpoint)} is required.");
-        }
+        // if (string.IsNullOrWhiteSpace(options.OtlpEndpoint))
+        // {
+        //     throw new InvalidOperationException($"{OpenTelemetryOptions.SectionName}:{nameof(OpenTelemetryOptions.OtlpEndpoint)} is required.");
+        // }
 
         if (string.IsNullOrWhiteSpace(options.ServiceName))
         {
