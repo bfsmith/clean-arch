@@ -30,7 +30,7 @@ services:
     environment:
       - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     ports:
-      - "15000:15000"
+      - "4317:18889" # Collector
       - "18888:18888"
     networks:
       - cleanarch-network

@@ -65,12 +65,13 @@ public static class OpenTelemetryOptionsExtensions
         var section = configuration.GetSection(OpenTelemetryOptions.SectionName);
         var options = section.Get<OpenTelemetryOptions>() ?? new OpenTelemetryOptions();
 
-        // Validate required properties
-        // if (string.IsNullOrWhiteSpace(options.OtlpEndpoint))
-        // {
-        //     throw new InvalidOperationException($"{OpenTelemetryOptions.SectionName}:{nameof(OpenTelemetryOptions.OtlpEndpoint)} is required.");
-        // }
+        // Fallback to standard OpenTelemetry environment variable if OtlpEndpoint is not configured
+        if (string.IsNullOrWhiteSpace(options.OtlpEndpoint))
+        {
+            options.OtlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? string.Empty;
+        }
 
+        // Validate required properties
         if (string.IsNullOrWhiteSpace(options.ServiceName))
         {
             throw new InvalidOperationException($"{OpenTelemetryOptions.SectionName}:{nameof(OpenTelemetryOptions.ServiceName)} is required.");

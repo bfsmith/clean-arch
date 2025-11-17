@@ -2,7 +2,6 @@ using System.Reflection;
 using Serilog.Events;
 using Serilog.Formatting;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace CleanArch.Logging;
 
@@ -34,64 +33,13 @@ public class CustomJsonFormatter : ITextFormatter
             var frameworkProperties = new HashSet<string> { "TraceId", "SpanId", "RequestId", "ConnectionId", "RequestPath", "ActionId", "ActionName", "SourceContext", "EnvironmentName", "MachineName", "ThreadId" };
             var properties = new Dictionary<string, object?>();
             
-            // Process properties and flatten scopes
-            // Properties are processed in the order they appear in logEvent.Properties
-            // When scopes are nested, outer scopes appear first, inner scopes appear later
-            // By processing in order and overwriting, inner scopes will overwrite outer ones
+            // Add structured properties from the log event (excluding framework properties and Scope)
             foreach (var property in logEvent.Properties)
             {
-                if (frameworkProperties.Contains(property.Key))
-                    continue;
-
-                if (property.Key == "Scope" && property.Value is SequenceValue sequence)
+                if (!frameworkProperties.Contains(property.Key))
                 {
-                    // Scope is a SequenceValue where each element represents a scope level
-                    // Outer scopes appear first, inner scopes appear later
-                    // Process in order so inner scopes overwrite outer ones
-                    foreach (var element in sequence.Elements)
-                    {
-                        if (element is StructureValue scopeStructure)
-                        {
-                            // Flatten each scope structure into the properties dictionary
-                            var flattened = FlattenStructureValue(scopeStructure);
-                            foreach (var kvp in flattened)
-                            {
-                                // Overwrite if key exists (inner scopes overwrite outer ones)
-                                properties[kvp.Key] = kvp.Value;
-                            }
-                        }
-                        else if (element is ScalarValue scalar && scalar.Value is string scopeString)
-                        {
-                            // When BeginScope is used with an object, Serilog may serialize it as a string
-                            // Format: "{ PropertyName = Value, PropertyName2 = Value2 }"
-                            // Parse the string representation to extract properties
-                            var parsed = ParseScopeString(scopeString);
-                            foreach (var kvp in parsed)
-                            {
-                                // Overwrite if key exists (inner scopes overwrite outer ones)
-                                properties[kvp.Key] = kvp.Value;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // Regular property from LogContext.PushProperty
-                    // When destructureObjects: true is used, complex objects become StructureValue
-                    // Simple values become ScalarValue
                     var camelKey = ToCamelCase(property.Key);
-                    
-                    // If it's a StructureValue (destructured object), convert it to a nested dictionary
-                    if (property.Value is StructureValue structureValue)
-                    {
-                        // Convert StructureValue to nested dictionary structure preserving object hierarchy
-                        properties[camelKey] = ConvertStructureValueToDictionary(structureValue);
-                    }
-                    else
-                    {
-                        // Simple value - add directly
-                        properties[camelKey] = FormatPropertyValue(property.Value);
-                    }
+                    properties[camelKey] = FormatPropertyValue(property.Value);
                 }
             }
 
@@ -176,7 +124,7 @@ public class CustomJsonFormatter : ITextFormatter
                 kvp => ToCamelCase(FormatPropertyValue(kvp.Key)?.ToString() ?? "null"),
                 kvp => FormatPropertyValue(kvp.Value)
             ),
-            _ => value.ToString()
+            _ => SanitizeValue(value.ToString())
         };
     }
 
@@ -266,208 +214,6 @@ public class CustomJsonFormatter : ITextFormatter
         return new string(chars);
     }
 
-    /// <summary>
-    /// Parses a scope string representation into a dictionary of properties.
-    /// Handles format: "{ PropertyName = Value, PropertyName2 = Value2 }"
-    /// </summary>
-    private static Dictionary<string, object?> ParseScopeString(string scopeString)
-    {
-        var result = new Dictionary<string, object?>();
-        
-        if (string.IsNullOrWhiteSpace(scopeString))
-            return result;
-        
-        // Remove outer braces if present
-        var trimmed = scopeString.Trim();
-        if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
-        {
-            trimmed = trimmed[1..^1].Trim();
-        }
-        
-        if (string.IsNullOrWhiteSpace(trimmed))
-            return result;
-        
-        // Split by comma, but be careful with quoted strings and nested objects
-        var properties = new List<string>();
-        var current = new System.Text.StringBuilder();
-        var depth = 0;
-        var inQuotes = false;
-        var escapeNext = false;
-        
-        foreach (var ch in trimmed)
-        {
-            if (escapeNext)
-            {
-                current.Append(ch);
-                escapeNext = false;
-                continue;
-            }
-            
-            if (ch == '\\')
-            {
-                escapeNext = true;
-                current.Append(ch);
-                continue;
-            }
-            
-            if (ch == '"' && !escapeNext)
-            {
-                inQuotes = !inQuotes;
-                current.Append(ch);
-                continue;
-            }
-            
-            if (inQuotes)
-            {
-                current.Append(ch);
-                continue;
-            }
-            
-            if (ch == '{' || ch == '[')
-            {
-                depth++;
-                current.Append(ch);
-                continue;
-            }
-            
-            if (ch == '}' || ch == ']')
-            {
-                depth--;
-                current.Append(ch);
-                continue;
-            }
-            
-            if (ch == ',' && depth == 0)
-            {
-                properties.Add(current.ToString().Trim());
-                current.Clear();
-                continue;
-            }
-            
-            current.Append(ch);
-        }
-        
-        // Add the last property
-        if (current.Length > 0)
-        {
-            properties.Add(current.ToString().Trim());
-        }
-        
-        // Parse each property: "PropertyName = Value"
-        foreach (var prop in properties)
-        {
-            if (string.IsNullOrWhiteSpace(prop))
-                continue;
-            
-            var equalIndex = prop.IndexOf('=');
-            if (equalIndex <= 0)
-                continue;
-            
-            var key = prop[..equalIndex].Trim();
-            var valueStr = prop[(equalIndex + 1)..].Trim();
-            
-            if (string.IsNullOrWhiteSpace(key))
-                continue;
-            
-            var camelKey = ToCamelCase(key);
-            var value = ParseValue(valueStr);
-            // Sanitize parsed values to ensure they can be serialized
-            result[camelKey] = SanitizeValue(value);
-        }
-        
-        return result;
-    }
-    
-    /// <summary>
-    /// Parses a string value into its appropriate type.
-    /// </summary>
-    private static object? ParseValue(string valueStr)
-    {
-        if (string.IsNullOrWhiteSpace(valueStr))
-            return null;
-        
-        // Handle null
-        if (valueStr.Equals("null", StringComparison.OrdinalIgnoreCase))
-            return null;
-        
-        // Handle quoted strings
-        if (valueStr.StartsWith('"') && valueStr.EndsWith('"'))
-        {
-            return valueStr[1..^1].Replace("\\\"", "\"").Replace("\\\\", "\\");
-        }
-        
-        // Handle booleans
-        if (bool.TryParse(valueStr, out var boolValue))
-            return boolValue;
-        
-        // Handle integers
-        if (long.TryParse(valueStr, out var longValue))
-            return longValue;
-        
-        // Handle decimals
-        if (decimal.TryParse(valueStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var decimalValue))
-            return decimalValue;
-        
-        // Return as string if nothing else matches
-        return valueStr;
-    }
 
-    /// <summary>
-    /// Converts a StructureValue to a nested dictionary structure preserving the object hierarchy.
-    /// </summary>
-    private static Dictionary<string, object?> ConvertStructureValueToDictionary(StructureValue structure)
-    {
-        var result = new Dictionary<string, object?>();
-        
-        foreach (var prop in structure.Properties)
-        {
-            var camelKey = ToCamelCase(prop.Name);
-            
-            // If the value is another structure, convert it recursively to preserve nesting
-            if (prop.Value is StructureValue nestedStructure)
-            {
-                result[camelKey] = ConvertStructureValueToDictionary(nestedStructure);
-            }
-            else
-            {
-                result[camelKey] = FormatPropertyValue(prop.Value);
-            }
-        }
-        
-        return result;
-    }
-
-    /// <summary>
-    /// Flattens a StructureValue into a dictionary with camelCase keys.
-    /// Recursively handles nested structures, using dot notation for nested properties.
-    /// Used for flattening scopes into flat properties.
-    /// </summary>
-    private static Dictionary<string, object?> FlattenStructureValue(StructureValue structure)
-    {
-        var result = new Dictionary<string, object?>();
-        
-        foreach (var prop in structure.Properties)
-        {
-            var camelKey = ToCamelCase(prop.Name);
-            
-            // If the value is another structure, flatten it recursively
-            if (prop.Value is StructureValue nestedStructure)
-            {
-                var nested = FlattenStructureValue(nestedStructure);
-                // Merge nested properties with dot notation for nested objects
-                foreach (var nestedKvp in nested)
-                {
-                    // Sanitize nested values to ensure they can be serialized
-                    result[$"{camelKey}.{nestedKvp.Key}"] = SanitizeValue(nestedKvp.Value);
-                }
-            }
-            else
-            {
-                result[camelKey] = FormatPropertyValue(prop.Value);
-            }
-        }
-        
-        return result;
-    }
 }
 

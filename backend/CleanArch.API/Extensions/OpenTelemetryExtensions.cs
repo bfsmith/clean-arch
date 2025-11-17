@@ -76,10 +76,11 @@ public static class OpenTelemetryExtensions
                     });
                 builder.AddOtlpExporter(options =>
                 {
-                    var a = new OtlpExporterOptions();
                     if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     {
                         options.Endpoint = new Uri(otlpEndpoint);
+                        // Aspire dashboard expects gRPC protocol for traces
+                        options.Protocol = OtlpExportProtocol.Grpc;
                     }
                 });
             })
