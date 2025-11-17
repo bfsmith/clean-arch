@@ -14,9 +14,10 @@ namespace CleanArch.Logging.Tests;
 public class LoggerExtensionsTests : UnitTestBase<object>
 {
     [SetUp]
-    public void SetUp()
+    public override void SetUp()
     {
-        MockLogger.Setup(x => x.BeginScope(It.IsAny<object>())).Returns(Mock.Of<IDisposable>());
+        base.SetUp();
+        // Additional setup can be added here if needed
     }
 
     #region Null Safety Tests
@@ -593,8 +594,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     public void Debug_WhenLoggerThrows_ShouldNotPropagateException()
     {
         // Arrange
-        var throwingLogger = new Mock<ILogger>();
-        throwingLogger.Setup(x => x.Log(
+        MockLogger.Setup(x => x.Log(
             It.IsAny<LogLevel>(),
             It.IsAny<EventId>(),
             It.IsAny<It.IsAnyType>(),
@@ -605,7 +605,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Act & Assert
         Assert.DoesNotThrow(() =>
         {
-            throwingLogger.Object.Debug("Test message");
+            MockLogger.Object.Debug("Test message");
         });
     }
 
@@ -613,8 +613,8 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     public void Info_WhenBeginScopeThrows_ShouldNotPropagateException()
     {
         // Arrange
-        var throwingLogger = new Mock<ILogger>();
-        throwingLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
+        // Override the default BeginScope setup to throw instead
+        MockLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
             .Throws<InvalidOperationException>();
 
         var properties = new { Name = "Test" };
@@ -622,7 +622,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Act & Assert
         Assert.DoesNotThrow(() =>
         {
-            throwingLogger.Object.Info("Test message", properties);
+            MockLogger.Object.Info("Test message", properties);
         });
     }
 
@@ -630,8 +630,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
     public void Error_WhenLoggerThrows_ShouldNotPropagateException()
     {
         // Arrange
-        var throwingLogger = new Mock<ILogger>();
-        throwingLogger.Setup(x => x.Log(
+        MockLogger.Setup(x => x.Log(
             It.IsAny<LogLevel>(),
             It.IsAny<EventId>(),
             It.IsAny<It.IsAnyType>(),
@@ -642,7 +641,7 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Act & Assert
         Assert.DoesNotThrow(() =>
         {
-            throwingLogger.Object.Error("Test message");
+            MockLogger.Object.Error("Test message");
         });
     }
 
@@ -792,14 +791,14 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         // Arrange
         // This tests the catch block in AddContext (lines 41-44)
         // We make BeginScope throw after ConvertToDictionary succeeds
-        var throwingLogger = new Mock<ILogger>();
-        throwingLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
+        // Override the default BeginScope setup to throw instead
+        MockLogger.Setup(x => x.BeginScope(It.IsAny<object>()))
             .Throws<InvalidOperationException>();
 
         var context = new { UserId = 123 };
 
         // Act
-        var result = throwingLogger.Object.AddContext(context);
+        var result = MockLogger.Object.AddContext(context);
 
         // Assert
         result.Should().BeNull(); // Should return null when exception occurs (lines 41-44)

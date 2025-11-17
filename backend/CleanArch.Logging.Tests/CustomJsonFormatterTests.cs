@@ -14,15 +14,17 @@ public class CustomJsonFormatterTests : UnitTestBase<CustomJsonFormatter>
     private StringWriter _output = null!;
 
     [SetUp]
-    public void SetUp()
+    public override void SetUp()
     {
+        base.SetUp();
         _output = new StringWriter();
     }
 
     [TearDown]
-    public void TearDown()
+    public override void TearDown()
     {
         _output?.Dispose();
+        base.TearDown();
     }
 
     #region Basic Functionality Tests

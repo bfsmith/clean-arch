@@ -17,18 +17,20 @@ public class ServiceCollectionExtensionsTests : UnitTestBase<object>
     private IConfiguration _configuration = null!;
 
     [SetUp]
-    public void SetUp()
+    public override void SetUp()
     {
+        base.SetUp();
         _services = new ServiceCollection();
         var configurationBuilder = new ConfigurationBuilder();
         _configuration = configurationBuilder.Build();
     }
 
     [TearDown]
-    public void TearDown()
+    public override void TearDown()
     {
         // Clean up static logger
         Log.CloseAndFlush();
+        base.TearDown();
     }
 
     [Test]
