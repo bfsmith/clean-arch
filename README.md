@@ -6,3 +6,9 @@ The project is split into two parts:
 - frontend: SolidJs based frontend
 
 Each part has its own README.md file with more details.
+
+
+TODO:
+1. Implement CQRS pattern for the backend
+2. Add health checks for the backend
+3. Add SQL Server database for the backend
