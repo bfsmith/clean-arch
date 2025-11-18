@@ -4,10 +4,11 @@ using Microsoft.OpenApi;
 using CleanArch.API.Configuration;
 using Microsoft.Extensions.Logging;
 using CleanArch.API.Middleware;
-using CleanArch.API.Extensions;
 using CleanArch.API.Services;
 using CleanArch.Core;
 using CleanArch.Logging;
+using CleanArch.OpenTelemetry;
+using CleanArch.OpenTelemetry.Configuration;
 
 namespace CleanArch.API;
 
@@ -52,6 +53,7 @@ public class Api
         AddAuthentication();
         AddCurrentUserService();
         AddSwagger();
+        AddHealthChecks();
     }
 
     protected void AddLogging()
@@ -146,6 +148,11 @@ public class Api
         });
     }
 
+    protected void AddHealthChecks()
+    {
+        Builder.Services.AddHealthChecks();
+    }
+
     #endregion
 
     #region PostBuild
@@ -175,6 +182,7 @@ public class Api
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.MapHealthChecks("/healthz").DisableHttpMetrics();
         app.MapControllers();
     }
     

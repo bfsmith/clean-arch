@@ -1,5 +1,5 @@
 using System.Linq;
-using CleanArch.API.Configuration;
+using CleanArch.OpenTelemetry.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
@@ -8,7 +8,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace CleanArch.API.Extensions;
+namespace CleanArch.OpenTelemetry;
 
 /// <summary>
 /// Extension methods for configuring OpenTelemetry observability.
@@ -51,6 +51,15 @@ public static class OpenTelemetryExtensions
                     .AddAspNetCoreInstrumentation(options =>
                     {
                         options.RecordException = true;
+                        if (requestPathsToIgnore.Count > 0)
+                        {
+                            options.Filter = (httpContext) =>
+                            {
+                                var requestPath = httpContext.Request.Path.Value ?? string.Empty;
+                                return !requestPathsToIgnore.Any(path =>
+                                    requestPath.StartsWith(path, StringComparison.OrdinalIgnoreCase));
+                            };
+                        }
                         options.EnrichWithHttpRequest = (activity, request) =>
                         {
                             activity.SetTag("http.request.method", request.Method);
@@ -112,3 +121,4 @@ public static class OpenTelemetryExtensions
         return services;
     }
 }
+

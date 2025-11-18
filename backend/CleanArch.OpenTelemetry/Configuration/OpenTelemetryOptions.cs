@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace CleanArch.API.Configuration;
+namespace CleanArch.OpenTelemetry.Configuration;
 
 /// <summary>
 /// Configuration options for OpenTelemetry observability.

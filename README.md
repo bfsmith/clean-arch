@@ -9,6 +9,7 @@ Each part has its own README.md file with more details.
 
 
 TODO:
-1. Implement CQRS pattern for the backend
-2. Add health checks for the backend
-3. Add SQL Server database for the backend
+- [ ] Implement CQRS pattern for the backend
+- [ ] Add SQL Server database for the backend
+- [ ] Instrument specific classes and methods for Open Telemetry
+  - Can I create an attribute that can be used to instrument a class or method?
