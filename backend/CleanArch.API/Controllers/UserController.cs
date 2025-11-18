@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using CleanArch.Core;
+using CleanArch.Core.Services;
 using CleanArch.Logging;
 
 namespace CleanArch.API.Controllers;

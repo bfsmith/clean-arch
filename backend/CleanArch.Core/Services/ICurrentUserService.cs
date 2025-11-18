@@ -1,4 +1,6 @@
-namespace CleanArch.Core;
+using CleanArch.Core.Models;
+
+namespace CleanArch.Core.Services;
 
 /// <summary>
 /// Service for accessing the current authenticated user information.

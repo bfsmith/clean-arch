@@ -2,11 +2,22 @@ This is an example project for a clean architecture application. It is meant to 
 
 The project is split into two parts:
 
-- backend: C# backend for the application
-- frontend: SolidJs based frontend
+- [backend](backend): C# backend for the application
+- [frontend](frontend): SolidJs based frontend
 
 Each part has its own README.md file with more details.
 
+# Local Development
+
+To run the project locally, you need to have Docker installed.
+
+```shell
+docker compose up
+```
+
+This will start the Keycloak server and the Aspire dashboard.
+
+Follow the instructions in the [docs/keycloak-setup.md](docs/keycloak-setup.md) file to set up the Keycloak server.
 
 TODO:
 - [ ] Implement CQRS pattern for the backend

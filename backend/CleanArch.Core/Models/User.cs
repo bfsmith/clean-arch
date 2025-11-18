@@ -1,14 +1,14 @@
-namespace CleanArch.Core;
+namespace CleanArch.Core.Models;
 
 /// <summary>
 /// Represents the current authenticated user for a request.
 /// </summary>
-public class CurrentUser
+public class User
 {
     /// <summary>
     /// Gets or sets the unique identifier of the user.
     /// </summary>
-    public string UserId { get; set; } = string.Empty;
+    public required Guid Id { get; set; }
 
     /// <summary>
     /// Gets or sets the username of the user.

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using CleanArch.API.Middleware;
 using CleanArch.API.Services;
 using CleanArch.Core;
+using CleanArch.Core.Services;
 using CleanArch.Logging;
 using CleanArch.OpenTelemetry;
 using CleanArch.OpenTelemetry.Configuration;
@@ -35,13 +36,14 @@ public class Api
     {
         Configuration();
         ConfigureServices();
+        ConfigureApplicationServices();
     }
 
     protected void Configuration()
     {
         Builder.Configuration.AddJsonFile("appsettings.json");
         Builder.Configuration.AddJsonFile($"appsettings.{Builder.Environment.EnvironmentName}.json", optional: true);
-        Builder.Configuration.AddUserSecrets(this.GetType().Assembly);
+        Builder.Configuration.AddUserSecrets(GetType().Assembly);
         Builder.Configuration.AddEnvironmentVariables();
     }
 
@@ -54,6 +56,11 @@ public class Api
         AddCurrentUserService();
         AddSwagger();
         AddHealthChecks();
+    }
+
+    protected void ConfigureApplicationServices()
+    {
+        Builder.Services.AddCoreServices();
     }
 
     protected void AddLogging()

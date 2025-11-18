@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using CleanArch.Core;
+using CleanArch.Core.Models;
+using CleanArch.Core.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace CleanArch.API.Services;
@@ -8,16 +10,10 @@ namespace CleanArch.API.Services;
 /// Implementation of <see cref="ICurrentUserService"/> that extracts user information
 /// from the current HTTP context claims with lazy initialization.
 /// </summary>
-public class CurrentUserService : ICurrentUserService
+public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICurrentUserService
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private User? _cachedUser;
     private bool _initialized;
-
-    public CurrentUserService(IHttpContextAccessor httpContextAccessor)
-    {
-        _httpContextAccessor = httpContextAccessor;
-    }
 
     /// <inheritdoc />
     public User? GetCurrentUser()
@@ -58,7 +54,7 @@ public class CurrentUserService : ICurrentUserService
 
     private User? LoadCurrentUser()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
+        var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null)
         {
             return null;
