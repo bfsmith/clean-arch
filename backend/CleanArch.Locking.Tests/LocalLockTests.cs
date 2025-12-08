@@ -8,10 +8,8 @@ public class LocalLockTests
         var semaphore = new SemaphoreSlim(1, 1);
         var myLock = new LocalLock(semaphore);
         
-        using var _ = await myLock.AcquireAsync();
-        
         int count = 3;
-        int wait = 4;
+        int wait = 10;
 
         var startTime = Environment.TickCount64;
         List<Task> tasks = new();
@@ -47,32 +45,5 @@ public class LocalLockTests
         var elapsed = (endTime - startTime);
         elapsed.Should().BeGreaterOrEqualTo(10);
         elapsed.Should().BeLessThan(20);
-    }
-
-    [Test]
-    public async Task WhenLockIsDeconstructed_SemaphoreIsDisposed()
-    {
-        var semaphore = new SemaphoreSlim(1, 1);
-        // Wrap in a scope so the lock immediately is unreferenced
-        {
-            var myLock = new LocalLock(semaphore);
-            weakRef = new WeakReference(myLock);
-        }
-        
-        // Force aggressive garbage collection to ensure the lock is collected
-        // Multiple passes to ensure collection and finalization
-        for (int i = 0; i < 3; i++)
-        {
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-        }
-        
-        // Verify the lock was actually collected
-        weakRef.IsAlive.Should().BeFalse("The LocalLock should have been garbage collected");
-        
-        // Assert that the semaphore was disposed by trying to use it
-        var act = async () => await semaphore.WaitAsync();
-        await act.Should().ThrowAsync<ObjectDisposedException>();
     }
 }

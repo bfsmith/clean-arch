@@ -6,10 +6,14 @@ internal static class Utils
     {
         return Task.Run(async () =>
         {
+            Console.WriteLine("starting");
+
             using (await @lock.AcquireAsync())
             {
                 Thread.Sleep(ms);
             }
+
+            Console.WriteLine("done");
         });
     }
 
@@ -28,6 +32,7 @@ internal static class Utils
             {
                 return true;
             }
+
             await SleepAsync(pauseMs);
         }
 

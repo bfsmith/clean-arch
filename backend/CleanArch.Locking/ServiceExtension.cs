@@ -9,10 +9,4 @@ public static class ServiceExtension
         services.AddSingleton<ILocalLockService, LocalLockService>();
         return services;
     }
-    
-    private  static IServiceCollection AddLockCleanup(this IServiceCollection services)
-    {
-        services.AddSingleton<ILocalLockService, LocalLockService>();
-        return services;
-    }
 }
