@@ -167,16 +167,6 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         });
     }
 
-    [Test]
-    public void AddContext_WithNullContext_ShouldReturnNull()
-    {
-        // Act
-        var result = MockLogger.Object.AddContext(null!);
-
-        // Assert
-        result.Should().BeNull();
-    }
-
     #endregion
 
     #region Simple Object Tests
@@ -1501,7 +1491,8 @@ public class LoggerExtensionsTests : UnitTestBase<object>
         var result = mockLogger.Object.AddContext(context);
 
         // Assert
-        result.Should().BeNull();
+        result.Should().NotBeNull();
+        result.Should().BeAssignableTo<IDisposable>();
     }
 
     [Test]

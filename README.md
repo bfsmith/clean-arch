@@ -1,4 +1,4 @@
-This is an example project for a clean architecture application. It is meant to demo how to set up various things following the clean architecture principles.
+This is an example project for a clean architecture application. It is meant to demo how to set up various things following the clean architecture principles. It also codifies some of my opinions on patterns with [logging](./backend/CleanArch.Logging/README.md) and [unit tests]().
 
 The project is split into two parts:
 
@@ -24,3 +24,5 @@ TODO:
 - [ ] Add SQL Server database for the backend
 - [ ] Instrument specific classes and methods for Open Telemetry
   - Can I create an attribute that can be used to instrument a class or method?
+- [ ] Setup package build and publish scripts for libs
+- [ ] Automatic version bumping of libs

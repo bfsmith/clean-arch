@@ -29,20 +29,17 @@ public static class LoggerExtensions
             LogWithProperties(logger, LogLevel.Error, message, properties);
         }
 
-        public IDisposable? AddContext(object context)
+        public IDisposable AddContext<TContext>(TContext context) where TContext : notnull
         {
-            if (logger == null || context == null)
-                return null;
-
             try
             {
                 var properties = ConvertToDictionary(context);
-                return logger.BeginScope(properties);
+                return logger.BeginScope(properties) ?? new NoopDisposable();
             }
             catch
             {
                 // Swallow exceptions to prevent propagation
-                return null;
+                return new NoopDisposable();
             }
         }
     }
@@ -58,7 +55,7 @@ public static class LoggerExtensions
             }
 
             var propertyDict = ConvertToDictionary(properties);
-            
+
             // Use BeginScope to add properties without modifying the message template
             try
             {
@@ -93,6 +90,7 @@ public static class LoggerExtensions
         {
             return dict;
         }
+
         visited.Add(obj);
 
         try
@@ -106,12 +104,13 @@ public static class LoggerExtensions
                     var key = entry.Key?.ToString() ?? "null";
                     dict[key] = ConvertValue(entry.Value, visited);
                 }
+
                 return dict;
             }
 
             // Handle objects using reflection
             var type = obj.GetType();
-            
+
             // Skip primitive types, strings, and other simple types
             if (IsSimpleType(type))
             {
@@ -177,6 +176,7 @@ public static class LoggerExtensions
                 var key = entry.Key?.ToString() ?? "null";
                 dict[key] = ConvertValue(entry.Value, visited);
             }
+
             return dict;
         }
 
@@ -188,6 +188,7 @@ public static class LoggerExtensions
             {
                 list.Add(ConvertValue(item, visited));
             }
+
             return list;
         }
 
@@ -238,7 +239,10 @@ public static class LoggerExtensions
         }
     }
 
+    private class NoopDisposable : IDisposable
+    {
+        public void Dispose()
+        {
+        }
+    }
 }
-
-
-
